@@ -28,6 +28,8 @@ services:
       - LOGGING_LEVEL=DEBUG
     networks:
       - testing_net
+    volumes:
+      - ./server/config.ini:/config.ini
 EOF
 
 for i in $(seq 1 $2); do
@@ -44,6 +46,8 @@ cat >> "$1" <<EOL
       - testing_net
     depends_on:
       - server
+    volumes:
+      - ./client/config.yaml:/config.yaml
 EOL
 done
 
