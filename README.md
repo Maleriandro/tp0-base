@@ -93,9 +93,20 @@ python3 mi-generador.py $1 $2
 
 En el archivo de Docker Compose de salida se pueden definir volúmenes, variables de entorno y redes con libertad, pero recordar actualizar este script cuando se modifiquen tales definiciones en los sucesivos ejercicios.
 
+>
+>#### Resolucion:
+>Para resolver este ejercicio implemente un script en bash, `generar-compose.sh`, que reciba como parámetros el nombre del archivo de salida y la cantidad de clientes. 
+>El script primero checkea que los parametros sean correctos.
+Luego, usa el comando cat para poder redirigir el contenido de un string al archivo indicado.
+>Para tener multiples clientes, simplemnte se realiza un bucle donde se ejecuta cat una vez para cada cliente con su respectivo ID, apendeando el contenido al archivo creado.
+
+
 ### Ejercicio N°2:
 Modificar el cliente y el servidor para lograr que realizar cambios en el archivo de configuración no requiera reconstruír las imágenes de Docker para que los mismos sean efectivos. La configuración a través del archivo correspondiente (`config.ini` y `config.yaml`, dependiendo de la aplicación) debe ser inyectada en el container y persistida por fuera de la imagen (hint: `docker volumes`).
 
+> #### Resolución:
+> Para resolver este ejercicio, se debe agregar al script que genera el compose, la definicion de volumenes que mapeen la configuracion encontrada en el repositorio, a la ubicacion dentro del docker. Para que cualquier cambio hecho en el host-os, se vea reflejado en el contenedor.
+> Tambien fue necesario eliminar las variables de entorno `LOGGING_LEVEL` y `CLI_LOG_LEVEL` que generaban conflicto con los archivos de configuracion, para esa configuracion específica.
 
 ### Ejercicio N°3:
 Crear un script de bash `validar-echo-server.sh` que permita verificar el correcto funcionamiento del servidor utilizando el comando `netcat` para interactuar con el mismo. Dado que el servidor es un echo server, se debe enviar un mensaje al servidor y esperar recibir el mismo mensaje enviado.
