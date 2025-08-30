@@ -3,7 +3,9 @@ package main
 import (
 	"fmt"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/op/go-logging"
@@ -91,6 +93,10 @@ func PrintConfig(v *viper.Viper) {
 }
 
 func main() {
+	// Canal para capturar señales de terminación
+	sigs := make(chan os.Signal, 1)
+	signal.Notify(sigs, os.Interrupt, syscall.SIGTERM)
+
 	v, err := InitConfig()
 	if err != nil {
 		log.Criticalf("%s", err)
@@ -111,5 +117,13 @@ func main() {
 	}
 
 	client := common.NewClient(clientConfig)
+
+	go func() {
+		sig := <-sigs
+		log.Infof("action: shutdown | result: in_progress | signal: %v", sig)
+		client.StopClient()
+		os.Exit(0)
+	}()
+
 	client.StartClientLoop()
 }
