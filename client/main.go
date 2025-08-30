@@ -95,7 +95,7 @@ func PrintConfig(v *viper.Viper) {
 func main() {
 	// Canal para capturar señales de terminación
 	sigs := make(chan os.Signal, 1)
-	signal.Notify(sigs, syscall.SIGTERM, syscall.SIGINT)
+	signal.Notify(sigs, os.Interrupt, syscall.SIGTERM)
 
 	v, err := InitConfig()
 	if err != nil {

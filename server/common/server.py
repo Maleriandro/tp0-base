@@ -17,7 +17,8 @@ class Server:
         logging.info("action: stop_server | result: in_progress")
         self._stopped = True
         logging.debug("action: stop_server_socket | result: in_progress")
-        self._server_socket.close()
+        if self._server_socket:
+            self._server_socket.close()
         logging.debug("action: stop_server_socket | result: success")
 
     def run(self):
