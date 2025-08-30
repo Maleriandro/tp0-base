@@ -117,7 +117,6 @@ func main() {
 	}
 
 	client := common.NewClient(clientConfig)
-	client.StartClientLoop()
 
 	go func() {
 		sig := <-sigs
@@ -126,4 +125,5 @@ func main() {
 		os.Exit(0)
 	}()
 
+	client.StartClientLoop()
 }
