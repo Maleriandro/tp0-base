@@ -13,14 +13,13 @@ class Server:
         
         signal.signal(signal.SIGTERM, self.__stop_server)
 
-    def __stop_server(self):
+    def __stop_server(self, signum, frame):
         logging.info("action: stop_server | result: in_progress")
         self._stopped = True
         logging.debug("action: stop_server_socket | result: in_progress")
         if self._server_socket:
             self._server_socket.close()
         logging.debug("action: stop_server_socket | result: success")
-        exit(0)
 
     def run(self):
         """
@@ -31,11 +30,13 @@ class Server:
         finishes, servers starts to accept new connections again
         """
 
-        # TODO: Modify this program to handle signal to graceful shutdown
-        # the server
-        while self._stopped is False:
-            client_sock = self.__accept_new_connection()
-            self.__handle_client_connection(client_sock)
+
+        while not self._stopped:
+            try:
+                client_sock = self.__accept_new_connection()
+                self.__handle_client_connection(client_sock)
+            except OSError:
+                break
             
         logging.info("action: stop_server | result: success")
 
