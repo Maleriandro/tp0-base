@@ -7,9 +7,9 @@ if [ $# -lt 2 ]; then
   exit 1
 fi
 
-# Check if the second argument is a positive integer
-if ! [[ "$2" =~ ^[1-9][0-9]*$ ]]; then
-  echo "Error: La cantidad de clientes debe ser un número entero positivo mayor o igual a 1."
+# Check if the second argument is a non-negative integer
+if ! [[ "$2" =~ ^[0-9]+$ ]]; then
+  echo "Error: La cantidad de clientes debe ser un número entero no negativo."
   exit 2
 fi
 
