@@ -124,4 +124,6 @@ func main() {
 		log.Infof("action: shutdown | result: in_progress | signal: %v", sig)
 		client.StopClient()
 	}()
+
+	os.Exit(0)
 }
