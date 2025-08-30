@@ -115,6 +115,11 @@ En caso de que la validación sea exitosa imprimir: `action: test_echo_server | 
 
 El script deberá ubicarse en la raíz del proyecto. Netcat no debe ser instalado en la máquina _host_ y no se pueden exponer puertos del servidor para realizar la comunicación (hint: `docker network`). `
 
+> #### Resolución:
+> Cree el script indicado. En el script, lanzo un nuevo contenedor de docker, indicandole la network a la que se tiene que conectar. Este contenedor es a partir de la imagen busybox que es una imagen chica que contiene netcat.
+> Envio por netcat el mensaje al servidor y espero a recibirlo. (El contenedor se cierra automaticamente luego).
+> Finalmente imprimo lo pedido por el ejercicio, y hago exit, con distintos valores para exito y error.
+
 
 ### Ejercicio N°4:
 Modificar servidor y cliente para que ambos sistemas terminen de forma _graceful_ al recibir la signal SIGTERM. Terminar la aplicación de forma _graceful_ implica que todos los _file descriptors_ (entre los que se encuentran archivos, sockets, threads y procesos) deben cerrarse correctamente antes que el thread de la aplicación principal muera. Loguear mensajes en el cierre de cada recurso (hint: Verificar que hace el flag `-t` utilizado en el comando `docker compose down`).
