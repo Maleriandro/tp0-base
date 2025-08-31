@@ -2,6 +2,8 @@ import socket
 import logging
 import signal
 
+from deserialize_bet import deserialize_bet
+from utils import store_bets, Bet
 
 class Server:
     def __init__(self, port, listen_backlog):
@@ -60,12 +62,12 @@ class Server:
         client socket will also be closed
         """
         try:
-            # TODO: Modify the receive to avoid short-reads
-            msg = self._current_client_socket.recv(1024).rstrip().decode('utf-8')
-            addr = self._current_client_socket.getpeername()
-            logging.info(f'action: receive_message | result: success | ip: {addr[0]} | msg: {msg}')
-            # TODO: Modify the send to avoid short-writes
-            self._current_client_socket.send("{}\n".format(msg).encode('utf-8'))
+            bet: Bet = deserialize_bet(self._current_client_socket)
+            store_bets([bet])
+            logging.info(f"action: apuesta_almacenada | result: success | dni: {bet.document} | numero: {bet.number}")
+            
+            self._current_client_socket.sendall(bytes([0]))
+            
         except OSError as e:
             logging.error("action: receive_message | result: fail | error: {e}")
         finally:
