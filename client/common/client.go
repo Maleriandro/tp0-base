@@ -11,7 +11,7 @@ var log = logging.MustGetLogger("log")
 
 // ClientConfig Configuration used by the client
 type ClientConfig struct {
-	ID            string
+	ID            uint32
 	ServerAddress string
 	LoopAmount    int
 	LoopPeriod    time.Duration

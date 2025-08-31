@@ -14,7 +14,7 @@ class Communication:
 
     def recieve_bet(self):
         self.__ensure_socket()
-        agency = self.__read_next_string()
+        agency = self.__read_uint32()
         first_name = self.__read_next_string()
         last_name = self.__read_next_string()
         document = self.__read_uint32()

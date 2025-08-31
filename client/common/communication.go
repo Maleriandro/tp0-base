@@ -84,7 +84,9 @@ func (b *Bet) serialize() []byte {
 		buf = append(buf, []byte(s)...)
 	}
 
-	appendString(b.agency)
+	agency_number := uint32ToBytes(b.agency)
+	buf = append(buf, agency_number...)
+
 	appendString(b.first_name)
 	appendString(b.last_name)
 

@@ -164,16 +164,16 @@ En particular, el protocolo consta de 2 mensajes:
 En particular se serializan de la siguiente manera:
 - Mensaje de apuesta:
 ```
-| len id_agencia (1byte)      | id_agencia (ascii var) |
-| len nombre (1byte)          | nombre (ascii var)     |
-| len apellido (1byte)        | apellido (ascii var)   |
-| DNI (4bytes big-endian)     |
-| len cumpleaños (1byte)      | cumpleaños (ascii var) |
-| numero (4bytes big-endian)  |
+| id_agencia (4bytes big-endian)|
+| len nombre (1byte)            | nombre (ascii var)     |
+| len apellido (1byte)          | apellido (ascii var)   |
+| DNI (4bytes big-endian)       |
+| len cumpleaños (1byte)        | cumpleaños (ascii var) |
+| numero (4bytes big-endian)    |
 ```
 - Mensaje de confirmación:
 ```
-| result (1byte)              | 
+| result (1byte)                | 
 ```
 Siendo este `byte = 0`, en caso de exito, y otro entero en caso de error.
 

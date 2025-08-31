@@ -11,18 +11,18 @@ LOTTERY_WINNER_NUMBER = 7574
 
 """ A lottery bet registry. """
 class Bet:
-    def __init__(self, agency: str, first_name: str, last_name: str, document: str, birthdate: str, number: str):
+    def __init__(self, agency: int, first_name: str, last_name: str, document: int, birthdate: str, number: int):
         """
         agency must be passed with integer format.
         birthdate must be passed with format: 'YYYY-MM-DD'.
         number must be passed with integer format.
         """
-        self.agency = int(agency)
+        self.agency = agency
         self.first_name = first_name
         self.last_name = last_name
         self.document = document
         self.birthdate = datetime.date.fromisoformat(birthdate)
-        self.number = int(number)
+        self.number = number
 
 """ Checks whether a bet won the prize or not. """
 def has_won(bet: Bet) -> bool:
