@@ -35,7 +35,7 @@ func newBetFromEnv(agency string) (*Bet, error) {
 
 	fechaNacimiento := os.Getenv("FECHA_NACIMIENTO")
 	if fechaNacimiento == "" {
-		fechaNacimiento = "2000-00-00"
+		fechaNacimiento = "2000-01-01"
 	}
 
 	documentoStr := os.Getenv("DOCUMENTO")
@@ -70,11 +70,12 @@ func (b *Bet) serialize() []byte {
 	appendString(b.agency)
 	appendString(b.first_name)
 	appendString(b.last_name)
-	appendString(b.birthdate)
 
 	// Document (uint32, big endian)
 	buf_document := uint32ToBytes(b.document)
 	buf = append(buf, buf_document...)
+
+	appendString(b.birthdate)
 
 	// Number (uint32, big endian)
 	buf_number := uint32ToBytes(b.number)

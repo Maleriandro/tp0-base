@@ -95,6 +95,7 @@ func (c *Client) createClientSocket() error {
 // }
 
 func (c *Client) MakeBet() error {
+	log.Infof("action: crear_apuesta | result: in_progress | client_id: %v", c.config.ID)
 	bet, err := newBetFromEnv(c.config.ID)
 	if err != nil {
 		log.Errorf("action: crear_apuesta | result: fail | client_id: %v | error: %v",
@@ -109,6 +110,8 @@ func (c *Client) MakeBet() error {
 
 	serializedBet := bet.serialize()
 
+	log.Infof("action: serializar_apuesta | result: success | client_id: %v", c.config.ID)
+
 	_, err = c.conn.Write(serializedBet)
 	if err != nil {
 		log.Errorf("action: apuesta_enviada | result: fail | client_id: %v | error: %v",
@@ -119,6 +122,9 @@ func (c *Client) MakeBet() error {
 		c.StopClient()
 		return errors.New("failed to send bet to server")
 	}
+
+
+	log.Infof("action: apuesta_enviada | result: in_progress | dni: %v | numero: %v", bet.document, bet.number)
 
 	// Receive a single byte from the server indicating success (0) or failure (other)
 	resp := make([]byte, 1)
