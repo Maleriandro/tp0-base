@@ -23,7 +23,7 @@ func (comm *Communication) SendBet(bet Bet) error {
 		return errors.New("there is no connection")
 	}
 	serializedBet := bet.serialize()
-	_, err := comm.conn.Write(serializedBet)
+	err := writeAll(comm.conn, serializedBet)
 	return err
 }
 
@@ -32,7 +32,9 @@ func (comm *Communication) RecieveConfirmation() (resp byte, err error) {
 		return 0, errors.New("there is no connection")
 	}
 	buffer := make([]byte, 1)
-	_, err = comm.conn.Read(buffer)
+
+	err = readAll(comm.conn, buffer)
+
 	if err != nil {
 		return 0, err
 	}
@@ -44,6 +46,30 @@ func (comm *Communication) Close() {
 		comm.conn.Close()
 		comm.conn = nil
 	}
+}
+
+func readAll(conn net.Conn, buf []byte) error {
+	total := 0
+	for total < len(buf) {
+		n, err := conn.Read(buf[total:])
+		if err != nil {
+			return err
+		}
+		total += n
+	}
+	return nil
+}
+
+func writeAll(conn net.Conn, buf []byte) error {
+	total := 0
+	for total < len(buf) {
+		n, err := conn.Write(buf[total:])
+		if err != nil {
+			return err
+		}
+		total += n
+	}
+	return nil
 }
 
 func (b *Bet) serialize() []byte {
