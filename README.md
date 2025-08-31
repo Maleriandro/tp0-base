@@ -153,6 +153,35 @@ Se deberá implementar un módulo de comunicación entre el cliente y el servido
 * Correcta separación de responsabilidades entre modelo de dominio y capa de comunicación.
 * Correcto empleo de sockets, incluyendo manejo de errores y evitando los fenómenos conocidos como [_short read y short write_](https://cs61.seas.harvard.edu/site/2018/FileDescriptors/).
 
+#### Resolución:
+Para la resolución de este ejercicio, cree un modulo nuevo de comunicacion para tanto el cliente como el servidor.
+Este modulo se encarga de abstraer tanto el protocolo como serializacion para ambos ejecutables del proyecto.
+En particular, el protocolo consta de 2 mensajes:
+
+1. **Mensaje de Apuesta**: Contiene todos los datos de la apuesta (id agencia, nombre, apellido, DNI, nacimiento, número). Es el mensaje que envia el cliente, para informarle al servidor la nueva apuesta.
+2. **Mensaje de Confirmación**: Respuesta del servidor indicando si la apuesta fue recibida y almacenada correctamente.
+
+En particular se serializan de la siguiente manera:
+- Mensaje de apuesta:
+```
+| len id_agencia (1byte)      | id_agencia (ascii var) |
+| len nombre (1byte)          | nombre (ascii var)     |
+| len apellido (1byte)        | apellido (ascii var)   |
+| DNI (4bytes big-endian)     |
+| len cumpleaños (1byte)      | cumpleaños (ascii var) |
+| numero (4bytes big-endian)  |
+```
+- Mensaje de confirmación:
+```
+| result (1byte)              | 
+```
+Siendo este `byte = 0`, en caso de exito, y otro entero en caso de error.
+
+
+Para prevenir short-write y short read, para ambos modulos de comunicacion, implementé funciones de lectura y/o escritura, que aseguren la completitud del mensaje. Esto es: cada vez que hago un write o read, me fijo si recibí todos los bytes esperados. En el caso de no haberlo hecho, hago de nuevo la llamada (tenidneo en cuenta que tengo que ya no tengo que pedir los bytes que ya recibí).
+
+> En particular, python ya implementa una funcion sendall, por lo que la version de send en el servidor no es necesario implementarla.
+
 
 ### Ejercicio N°6:
 Modificar los clientes para que envíen varias apuestas a la vez (modalidad conocida como procesamiento por _chunks_ o _batchs_). 

@@ -2,6 +2,8 @@ import socket
 import logging
 import signal
 
+from common.communication import Communication
+from common.utils import store_bets, Bet
 
 class Server:
     def __init__(self, port, listen_backlog):
@@ -9,7 +11,7 @@ class Server:
         self._server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._server_socket.bind(('', port))
         self._server_socket.listen(listen_backlog)
-        self._current_client_socket = None
+        self._current_client_communication = None
         self._stopped = False
         
         signal.signal(signal.SIGTERM, self.__stop_server)
@@ -28,9 +30,9 @@ class Server:
 
         # Cerrar socket cliente
         logging.debug("action: stop_client_socket | result: in_progress")
-        if self._current_client_socket:
-            self._current_client_socket.close()
-        self._current_client_socket = None
+        if self._current_client_communication:
+            self._current_client_communication.close()
+        self._current_client_communication = None
         logging.debug("action: stop_client_socket | result: success")
 
     def run(self):
@@ -45,7 +47,7 @@ class Server:
 
         while not self._stopped:
             try:
-                self._current_client_socket = self.__accept_new_connection()
+                self._current_client_communication = self.__accept_new_connection()
                 self.__handle_client_connection()
             except OSError:
                 break
@@ -60,18 +62,20 @@ class Server:
         client socket will also be closed
         """
         try:
-            # TODO: Modify the receive to avoid short-reads
-            msg = self._current_client_socket.recv(1024).rstrip().decode('utf-8')
-            addr = self._current_client_socket.getpeername()
-            logging.info(f'action: receive_message | result: success | ip: {addr[0]} | msg: {msg}')
-            # TODO: Modify the send to avoid short-writes
-            self._current_client_socket.send("{}\n".format(msg).encode('utf-8'))
+            logging.info(f"action: esperando_recibir_apuesta | result: in_progress")
+            bet: Bet = self._current_client_communication.recieve_bet()
+            logging.info(f"action: apuesta_recibida | result: success")
+            store_bets([bet])
+            logging.info(f"action: apuesta_almacenada | result: success | dni: {bet.document} | numero: {bet.number}")
+
+            self._current_client_communication.send_ok()
+            
         except OSError as e:
             logging.error("action: receive_message | result: fail | error: {e}")
         finally:
-            if self._current_client_socket:
-                self._current_client_socket.close()
-            self._current_client_socket = None
+            if self._current_client_communication:
+                self._current_client_communication.close()
+            self._current_client_communication = None
 
     def __accept_new_connection(self):
         """
@@ -85,4 +89,6 @@ class Server:
         logging.info('action: accept_connections | result: in_progress')
         c, addr = self._server_socket.accept()
         logging.info(f'action: accept_connections | result: success | ip: {addr[0]}')
-        return c
+
+        client_communication = Communication(c)
+        return client_communication
