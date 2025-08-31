@@ -2,7 +2,6 @@ package common
 
 import (
 	"encoding/binary"
-	"errors"
 	"os"
 	"strconv"
 )
@@ -17,8 +16,8 @@ type Bet struct {
 }
 
 func newBetFromEnv(agency string) (*Bet, error) {
-	
-	nombre := os.LookupEnv("NOMBRE")
+
+	nombre := os.Getenv("NOMBRE")
 	if nombre == "" {
 		nombre = "desconocido"
 	}

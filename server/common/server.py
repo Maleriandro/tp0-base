@@ -2,8 +2,8 @@ import socket
 import logging
 import signal
 
-from deserialize_bet_file import deserialize_bet
-from utils import store_bets, Bet
+from common.deserialize_bet import deserialize_bet
+from common.utils import store_bets, Bet
 
 class Server:
     def __init__(self, port, listen_backlog):

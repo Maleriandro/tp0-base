@@ -1,4 +1,4 @@
-from utils import Bet
+from common.utils import Bet
 
 def deserialize_bet(socket):
     agency = read_next_string(socket)
