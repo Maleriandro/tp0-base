@@ -62,6 +62,7 @@ class Server:
         client socket will also be closed
         """
         try:
+            logging.info(f"action: esperando_recibir_apuesta | result: in_progress")
             bet: Bet = deserialize_bet(self._current_client_socket)
             store_bets([bet])
             logging.info(f"action: apuesta_almacenada | result: success | dni: {bet.document} | numero: {bet.number}")
