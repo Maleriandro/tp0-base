@@ -17,9 +17,6 @@ type Bet struct {
 }
 
 func newBetFromEnv(agency string) (*Bet, error) {
-	nombre, existeNombre := os.LookupEnv("NOMBRE")
-	apellido,
-	
 	
 	nombre := os.LookupEnv("NOMBRE")
 	if nombre == "" {
