@@ -6,7 +6,7 @@ import (
 )
 
 type Bet struct {
-	agency     string
+	agency     uint32
 	first_name string
 	last_name  string
 	document   uint32
@@ -14,7 +14,7 @@ type Bet struct {
 	number     uint32
 }
 
-func newBetFromEnv(agency string) (Bet, error) {
+func newBetFromEnv(agency uint32) (Bet, error) {
 
 	nombre := os.Getenv("NOMBRE")
 	if nombre == "" {
