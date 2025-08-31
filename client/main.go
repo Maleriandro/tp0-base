@@ -125,5 +125,8 @@ func main() {
 		os.Exit(0)
 	}()
 
-	client.StartClientLoop()
+	if err := client.MakeBet(); err != nil {
+		log.Errorf("action: make_bet | result: failure | error: %v", err)
+		os.Exit(1)
+	}
 }
