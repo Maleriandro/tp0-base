@@ -17,28 +17,21 @@ type Bet struct {
 }
 
 func newBetFromEnv(agency string) (*Bet, error) {
-	nombre := os.Getenv("NOMBRE")
-	if nombre == "" {
-		return nil, errors.New("NOMBRE is required")
+	nombre, existeNombre := os.LookupEnv("NOMBRE")
+	apellido, existeApellido := os.LookupEnv("APELLIDO")
+	documentoStr, existeDocumento := os.LookupEnv("DOCUMENTO")
+	fechaNacimiento, existeFecha := os.LookupEnv("FECHA_NACIMIENTO")
+	numeroStr, existeNumero := os.LookupEnv("NUMERO")
+
+	if !existeNombre || !existeApellido || !existeDocumento || !existeFecha || !existeNumero {
+		return nil, errors.New("All environment variables are required")
 	}
 
-	apellido := os.Getenv("APELLIDO")
-	if apellido == "" {
-		return nil, errors.New("APELLIDO is required")
-	}
-
-	numeroStr := os.Getenv("NUMERO")
 	numero, err := strconv.Atoi(numeroStr)
 	if err != nil {
 		return nil, err
 	}
-
-	fechaNacimiento := os.Getenv("FECHA_NACIMIENTO")
-	if fechaNacimiento == "" {
-		return nil, errors.New("FECHA_NACIMIENTO is required")
-	}
-
-	documentoStr := os.Getenv("DOCUMENTO")
+	
 	documento, err := strconv.Atoi(documentoStr)
 	if err != nil {
 		return nil, err
