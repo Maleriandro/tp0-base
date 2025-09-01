@@ -221,6 +221,14 @@ Por su parte, el servidor deberá responder con éxito solamente si todas las ap
 >Con este nuevo formato, cada apuesta puede ocupar como máximo 1+30+30+4+11+4 = 80 bytes.
 >Por lo que podemos obtener la cantidad máxima de apuestas que se pueden enviar en un único mensaje. 8000 bytes / 80 bytes = 100 apuestas. Para darle espacio al header, hago que el máximo numero de apuestas por mensaje sea 99.
 >
+> Similar al ejercicio anterior, el cliente puede enviar un unico batch de apuestas por cada conexion. Para permitir que otros clientes intercalen sus batches, y evitar que un cliente tenga que esperar demasiado a que otro cliente termine.
+>
+> Para agregar la data de apuestas, se agrega un nuevo punto de montaje en el script que genera los compose, tomando el argency-{id}.csv correspondiente, y montandolo en la raiz.
+>
+> Para leer las apuestas, como los archivos no son demasiado grandes, decidí leerlos todo de una unica vez, e inmediatamente dividirlo en los batches para que el loop principal pueda consumir un batch a la vez.
+> Si se supiera que los archivos fueran más grandes, se podría implementar una lógica de lectura más eficiente, como leer de a un batch, esperando a enviar tal batch antes de leer el siguiente del archivo.
+>
+> En el modulo de comunicacion, agregue la opcion de conectar y desconectrse del servidor, usado para conectarse antes de enviar cada batch, y desconectarse al recibir la confirmación de éxito.
 >
 >> Aclaracion:
 >> Por alguna razon, en alguna de las ejecuciones de los test, si bien el programa cliente llegaba a la linea justo anterior a donde se ejecutraba os.Exit(n), el cliente no pareciera cerrarse de verdad, y el test termina esperando infinitamente la terminacion del cliente.
