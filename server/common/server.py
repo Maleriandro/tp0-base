@@ -7,7 +7,7 @@ from common.communication import Communication, EnvioBatchMessage, Message, Mess
 from common.utils import has_won, load_bets, store_bets, Bet
 
 class Server:
-    def __init__(self, port, listen_backlog):
+    def __init__(self, port, listen_backlog, client_amount):
         # Initialize server socket
         self._server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._server_socket.bind(('', port))
@@ -15,7 +15,7 @@ class Server:
         self._current_client_communication = None
         self._stopped = False
         
-        self._agencias_totales = 5
+        self._agencias_totales = client_amount
         self._agencias_que_completaron_envio = set()
 
         self._sorteo_realizado = False
