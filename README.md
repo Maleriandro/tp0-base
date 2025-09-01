@@ -216,6 +216,11 @@ Por su parte, el servidor deberá responder con éxito solamente si todas las ap
 >
 >Con este nuevo formato, cada apuesta puede ocupar como máximo 1+30+30+4+11+4 = 80 bytes.
 >Por lo que podemos obtener la cantidad máxima de apuestas que se pueden enviar en un único mensaje. 8000 bytes / 80 bytes = 100 apuestas. Para darle espacio al header, hago que el máximo numero de apuestas por mensaje sea 99.
+>
+>
+>> Aclaracion:
+>> Por alguna razon, en alguna de las ejecuciones de los test, si bien el programa cliente llegaba a la linea justo anterior a donde se ejecutraba os.Exit(n), el cliente no pareciera cerrarse de verdad, y el test termina esperando infinitamente la terminacion del cliente.
+>> Por eso agregué prints de action exit, para que el test pueda finalizar, aunque el cliente no pareciera hacerlo.
 
 ### Ejercicio N°7:
 

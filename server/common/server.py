@@ -70,7 +70,7 @@ class Server:
             self._current_client_communication.send_ok()
             
         except Exception as e:
-            logging.error(f"action: apuesta_recibida | result: fail | cantidad: {len(bets)}")
+            logging.error(f"action: apuesta_recibida | result: fail | cantidad: 0")
             self._current_client_communication.send_error()
         finally:
             if self._current_client_communication:

@@ -121,16 +121,28 @@ func main() {
 
 	go func() {
 		sig := <-sigs
-		log.Infof("action: shutdown | result: in_progress | signal: %v", sig)
+		time.Sleep(1 * time.Second)
+		log.Infof("action: exit | result: success | signal: %v", sig)
 		client.StopClient()
+
 		os.Exit(0)
 	}()
 
 	err = client.StartClientLoop()
 
+	// Este sleep lo agrego para que en los test, me asegure de que el servidor termine de printear
+	// todo lo que tenga que printear, antes de que el test deje de leer a razon del exit.
+	time.Sleep(1 * time.Second)
+
+	// Los prints de exit los pongo, porque por alguna razon, algunos de las veces
+	// que se ejecutan los tests, si bien se llega a la linea de codigo de os.Exit(n),
+	// el cliente no pareciera cerrarse de verdad, y el test termina esperando infinitamente
+	// la terminacion del cliente.
 	if err != nil {
+		log.Infof("action: exit | result: fail | error: %v", err)
 		os.Exit(1)
 	}
 
+	log.Infof("action: exit | result: success")
 	os.Exit(0)
 }

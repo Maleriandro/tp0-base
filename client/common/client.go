@@ -81,7 +81,7 @@ func (c *Client) StartClientLoop() error {
 
 	bets_made := 0
 
-	for msgID := 1; msgID <= c.config.LoopAmount; msgID++ {
+	for msgID := 1; msgID <= c.config.LoopAmount && msgID <= len(batches); msgID++ {
 		if c.stopped {
 			log.Infof("action: loop_finished | result: stopped | client_id: %v", c.config.ID)
 			return nil
