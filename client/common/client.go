@@ -53,100 +53,84 @@ func (c *Client) createClientCommunication() error {
 }
 
 // StartClientLoop Send messages to the client until some time threshold is met
-func (c *Client) StartClientLoop() {
+func (c *Client) StartClientLoop() error {
 	// There is an autoincremental msgID to identify every message sent
 	// Messages if the message amount threshold has not been surpassed
+
+	defer c.StopClient()
+
+	bets, err := ReadBetsOfAgency(c.config.ID)
+	if err != nil {
+		log.Errorf("action: leer_apuestas | result: fail | client_id: %v | error: %v",
+			c.config.ID,
+			err,
+		)
+		return err
+	}
+
+	err = c.createClientCommunication()
+	if err != nil {
+		log.Errorf("action: crear_comunicacion | result: fail | client_id: %v | error: %v",
+			c.config.ID,
+			err,
+		)
+		return err
+	}
+
+	batches := divideBetsInBatches(bets, c.config.MaxBetsPerBatch)
+
+	bets_made := 0
+
 	for msgID := 1; msgID <= c.config.LoopAmount; msgID++ {
 		if c.stopped {
-
-			log.Infof("parado en MSGid: %v", msgID)
-			log.Infof("action: loop_finished | result: success | client_id: %v", c.config.ID)
-			return
+			log.Infof("action: loop_finished | result: stopped | client_id: %v", c.config.ID)
+			return nil
 		}
 
-		err := c.MakeBet()
+		c.comm.startConnection()
+
+		err := c.MakeBetBatch(batches[msgID-1])
 
 		if err != nil {
 			log.Errorf("action: loop_finished | result: fail | client_id: %v | error: %v",
 				c.config.ID,
 				err,
 			)
-			return
+			return err
 		}
+
+		c.comm.stopConnection()
+
+		bets_made += len(batches[msgID-1])
+		log.Infof("action: apuesta_enviada | result: in_progress | cantidad_acumulada: %v", bets_made)
 
 		// Wait a time between sending one message and the next one
 		time.Sleep(c.config.LoopPeriod)
 	}
 
+	log.Infof("action: apuesta_enviada | result: success | cantidad_total: %v", bets_made)
 	log.Infof("action: loop_finished | result: success | client_id: %v", c.config.ID)
+
+	return nil
 }
 
-func (c *Client) MakeBet() error {
-	log.Infof("action: crear_apuesta | result: in_progress | client_id: %v", c.config.ID)
-	bet, err := ReadBetsOfAgency(c.config.ID)
+func (c *Client) MakeBetBatch(bets []Bet) error {
+	if c.comm == nil {
+		return errors.New("communication not initialized")
+	}
 
+	err := c.comm.SendBetsBatch(bets)
 	if err != nil {
-		log.Errorf("action: crear_apuesta | result: fail | client_id: %v | error: %v",
-			c.config.ID,
-			err,
-		)
-		return errors.New("failed to read bets from agency")
+		return errors.New("failed to send bet batch to server")
 	}
 
-	batches := divideBetsInBatches(bet, c.config.MaxBetsPerBatch)
-
-	// Send the bet to the server
-	c.createClientCommunication()
-
-	apuestas_enviadas := 0
-
-	for _, batch := range batches {
-		if c.stopped {
-			log.Infof("action: apuesta_enviada | result: stopped | client_id: %v", c.config.ID)
-			return errors.New("client stopped")
-		}
-
-		err = c.comm.SendBetsBatch(batch)
-		if err != nil {
-			log.Errorf("action: apuesta_enviada | result: fail | client_id: %v | error: %v",
-				c.config.ID,
-				err,
-			)
-			c.StopClient()
-			return errors.New("failed to send bet batch to server")
-		}
-
-		resp, err := c.comm.RecieveConfirmation()
-		if err != nil {
-			log.Errorf("action: apuesta_enviada | result: fail | error: %v",
-				err,
-			)
-			c.StopClient()
-			return errors.New("failed to receive response from server")
-		}
-		if resp != 0 {
-			log.Errorf("action: apuesta_enviada | result: fail | code: %v",
-				resp,
-			)
-			c.StopClient()
-			return errors.New("server returned error code")
-		}
-
-		apuestas_enviadas += len(batch)
-		log.Infof("action: apuesta_enviada | result: in_progress | cantidad_acumulada: %v", apuestas_enviadas)
-
-		if err := c.comm.ResetConnection(); err != nil {
-			log.Errorf("action: apuesta_enviada | result: fail | error: %v",
-				err,
-			)
-			c.StopClient()
-			return errors.New("failed to reset connection")
-		}
+	resp, err := c.comm.RecieveConfirmation()
+	if err != nil {
+		return errors.New("failed to receive response from server")
 	}
-
-	log.Infof("action: apuesta_enviada | result: success | cantidad_total: %v", apuestas_enviadas)
-
-	c.StopClient()
+	if resp != 0 {
+		return errors.New("server returned error code")
+	}
 
 	return nil
 }

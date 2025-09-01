@@ -21,6 +21,11 @@ func CreateCommunication(server_address string, max_bets_per_batch int) (*Commun
 }
 
 func (comm *Communication) startConnection() error {
+	//Si la comunicacion ya está iniciada, no hace nada
+	if comm.conn != nil {
+		return nil
+	}
+
 	conn, err := net.Dial("tcp", comm.server_address)
 	if err != nil {
 		return err
