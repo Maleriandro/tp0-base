@@ -159,8 +159,11 @@ class Server:
         while mantener_conexion and not self._stopped:
             mensaje = self._current_client_communication.leer_mensaje_socket()
 
-            match mensaje.tipo_mensaje:
-                case MessageType.ENVIO_BATCH:
-                    mantener_conexion = self._procesar_envio_batch(mensaje)
-                case MessageType.SOLICITUD_GANADORES:
-                    mantener_conexion = self._procesar_solicitud_ganadores(mensaje)
+            if mensaje.tipo_mensaje == MessageType.ENVIO_BATCH:
+                mantener_conexion = self._procesar_envio_batch(mensaje)
+            elif mensaje.tipo_mensaje == MessageType.SOLICITUD_GANADORES:
+                mantener_conexion = self._procesar_solicitud_ganadores(mensaje)
+            else:
+                logging.error(f"action: mensaje_no_reconocido | result: fail | tipo: {mensaje.tipo_mensaje}")
+                mantener_conexion = False
+                
