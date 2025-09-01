@@ -252,7 +252,8 @@ No es correcto realizar un broadcast de todos los ganadores hacia todas las agen
 > Como minimo deben agregarse 3 mensajes.
 > - Uno que indique que el cliente terminó de enviar todas las apuestas. En este caso decidí que el cliente envie un batch de tamaño 0.
 > - Uno para que el cliente solicite la lista de ganadores.
-> - Uno para que el servidor informe la lista de ganadores, (o que el sorteo todavía no fue realizado).
+> - Uno para que el servidor informe la lista de ganadores.
+> - Uno para que el servidor informe que el sorteo no fue realizado.
 >
 > Para agregar estos tipos de mensajes, decido agregarle a todos los mensajes un header de 1byte, seguido de un body, de la siguiente manera
 > ```
@@ -275,34 +276,41 @@ No es correcto realizar un broadcast de todos los ganadores hacia todas las agen
 >| cumpleaños (null terminated string)   |  max 11 chars, including null
 >| numero (4bytes big-endian)            |
 >```
-
+>
 > CONFIRMACION_RECEPCION = 2
 > ```
 > | confirmacion (1byte)                 | 0 en caso de exito, 1 en caso de error
 > ```
-
+>
 > SOLICITUD_GANADORES = 3
 > ```
 > | id_agencia (4bytes big-endian)        |
 > ```
-
-> RESPUESTA_GANADORES = 4
+>
+> SORTEO_NO_REALIZADO = 4
+> no tiene ningun body.
+> 
+> RESPUESTA_GANADORES = 5
 > | cant_ganadores (4bytes big-endian) |
 > | ---------------------------------- |
 > | DNI ganador 1 (4bytes big-endian)  |
 > |               (...)                |
 > | DNI ganador N (4bytes big-endian)  |
-
+>
+> Para simplificar el protocolo, tambien decidí que el cliente envie todos los batchs en la misma conexion. En vez de utilizar una conexion para cada batch enviado.
+>
+>
 > El flujo sería entonces:
 > 1. El cliente se conecta al servidor
-> 2. El cliente envia un batch de tamaño > 0
+> 2. El cliente envía un batch de tamaño > 0
 > 3. El servidor responde con una confirmación
-> 4. La conexion se cierra (para permitir otros clientes)
 > 5. Si el cliente tiene más apuestas, puede volver al paso 1.
-> 6. El cliente se conecta al servidor.
-> 7. El cliente envía solicitud de ganadores.
-> 8.1. El servidor todavía no recibió todas las apuestas, le responde que el sorteo no fue finalizado. Cierra la conexion y vuelve al punto 6.
-> 8.2. El servidor ya recibió todas las apuestas, verifica los ganadores y responde con la lista de ganadores para éste cliente. Cierra la conexion.
+> 6. El cliente no tiene más apuestas. Envia un batch de tamaño 0.
+> 7. Servidor responde con una confirmacion, y se cierra la conexion.
+> 8. El cliente se conecta al servidor.
+> 9. El cliente envía solicitud de ganadores.
+> 10.1. El servidor todavía no recibió todas las apuestas, le responde que el sorteo no fue finalizado. Cierra la conexion y vuelve al punto 6.
+> 10.2. El servidor ya recibió todas las apuestas, verifica los ganadores y responde con la lista de ganadores para éste cliente (o 0 si ningun DNI de este cliente ganó). Cierra la conexion.
 
 
 
