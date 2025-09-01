@@ -7,23 +7,56 @@ import (
 )
 
 type Communication struct {
-	conn net.Conn
+	conn               net.Conn
+	max_bets_per_batch int
+	server_address     string
 }
 
-func CreateCommunication(server_address string) (*Communication, error) {
+func CreateCommunication(server_address string, max_bets_per_batch int) (*Communication, error) {
 	conn, err := net.Dial("tcp", server_address)
 	if err != nil {
 		return nil, err
 	}
-	return &Communication{conn: conn}, nil
+	return &Communication{conn: conn, max_bets_per_batch: max_bets_per_batch, server_address: server_address}, nil
 }
 
-func (comm *Communication) SendBet(bet Bet) error {
+func (comm *Communication) startConnection() error {
+	//Si la comunicacion ya está iniciada, no hace nada
+	if comm.conn != nil {
+		return nil
+	}
+
+	conn, err := net.Dial("tcp", comm.server_address)
+	if err != nil {
+		return err
+	}
+	comm.conn = conn
+	return nil
+}
+
+func (comm *Communication) stopConnection() {
+	if comm.conn != nil {
+		comm.conn.Close()
+		comm.conn = nil
+	}
+}
+
+func (comm *Communication) ResetConnection() error {
+	comm.stopConnection()
+	return comm.startConnection()
+}
+
+func (comm *Communication) SendBetsBatch(bets []Bet) error {
 	if comm.conn == nil {
 		return errors.New("there is no connection")
 	}
-	serializedBet := bet.serialize()
-	err := writeAll(comm.conn, serializedBet)
+
+	if len(bets) > comm.max_bets_per_batch {
+		return errors.New("too many bets")
+	}
+
+	serializedBets := SerializeBets(bets)
+	err := writeAll(comm.conn, serializedBets)
 	return err
 }
 
@@ -42,10 +75,7 @@ func (comm *Communication) RecieveConfirmation() (resp byte, err error) {
 }
 
 func (comm *Communication) Close() {
-	if comm.conn != nil {
-		comm.conn.Close()
-		comm.conn = nil
-	}
+	comm.stopConnection()
 }
 
 func readAll(conn net.Conn, buf []byte) error {
@@ -72,35 +102,50 @@ func writeAll(conn net.Conn, buf []byte) error {
 	return nil
 }
 
-func (b *Bet) serialize() []byte {
-	buf := make([]byte, 0)
+func serializeSingleBet(bet Bet) []byte {
+	serialized_name := stringToNullEndedBytes(bet.first_name, 29)
+	serialized_last_name := stringToNullEndedBytes(bet.last_name, 29)
+	serialized_birthdate := stringToNullEndedBytes(bet.birthdate, 10)
 
-	// Helper to append string with length prefix
-	appendString := func(s string) {
-		if len(s) > 255 {
-			s = s[:255]
-		}
-		buf = append(buf, byte(len(s)))
-		buf = append(buf, []byte(s)...)
+	serialized := make([]byte, 0)
+	serialized = append(serialized, serialized_name...)
+	serialized = append(serialized, serialized_last_name...)
+	serialized = append(serialized, uint32ToBytes(bet.document)...)
+	serialized = append(serialized, serialized_birthdate...)
+	serialized = append(serialized, uint32ToBytes(bet.number)...)
+
+	serialized[0] = byte(len(serialized))
+
+	return serialized
+}
+
+func SerializeBets(bets []Bet) []byte {
+
+	if len(bets) == 0 {
+		return nil
 	}
 
-	agency_number := uint32ToBytes(b.agency)
-	buf = append(buf, agency_number...)
+	if len(bets) > 255 {
+		return nil
+	}
 
-	appendString(b.first_name)
-	appendString(b.last_name)
+	serializedBets := make([][]byte, len(bets))
+	for i, bet := range bets {
+		serializedBets[i] = serializeSingleBet(bet)
+	}
 
-	// Document (uint32, big endian)
-	buf_document := uint32ToBytes(b.document)
-	buf = append(buf, buf_document...)
+	if len(bets) == 0 {
+		return nil
+	}
+	header := make([]byte, 5)
+	binary.BigEndian.PutUint32(header[:4], bets[0].agency)
+	header[4] = byte(len(bets))
 
-	appendString(b.birthdate)
-
-	// Number (uint32, big endian)
-	buf_number := uint32ToBytes(b.number)
-	buf = append(buf, buf_number...)
-
-	return buf
+	result := append(header, serializedBets[0]...)
+	for i := 1; i < len(serializedBets); i++ {
+		result = append(result, serializedBets[i]...)
+	}
+	return result
 }
 
 func uint32ToBytes(n uint32) []byte {
@@ -108,4 +153,11 @@ func uint32ToBytes(n uint32) []byte {
 
 	binary.BigEndian.PutUint32(buf, n)
 	return buf
+}
+
+func stringToNullEndedBytes(s string, max_size int) []byte {
+	if len(s) > max_size {
+		s = s[:max_size]
+	}
+	return append([]byte(s), 0)
 }
