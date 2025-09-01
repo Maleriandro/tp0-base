@@ -1,54 +1,173 @@
+from abc import ABC, abstractmethod
 from common.utils import Bet
+from enum import IntEnum
+from dataclasses import dataclass
+from typing import List, Optional
 
-class SocketNotInitializedError(RuntimeError):
+
+class SocketNotInitializedError(Exception):
     pass
+
+class InvalidMessageType(Exception):
+    pass
+
+class InvalidServerMessage(Exception):
+    """Raised when the server receives a message it should not receive."""
+    pass
+
+class MessageType(IntEnum):
+    ENVIO_BATCH = 1
+    CONFIRMACION_RECEPCION = 2
+    SOLICITUD_GANADORES = 3
+    SORTEO_NO_REALIZADO = 4
+    RESPUESTA_GANADORES = 5
+    
+
+class Message(ABC):
+    tipo_mensaje: int
+    
+    @abstractmethod
+    def serializar(self) -> bytes:
+        raise NotImplementedError("Subclasses must implement this method")
+
+@dataclass
+class EnvioBatchMessage(Message):
+    tipo_mensaje: int = MessageType.ENVIO_BATCH
+    id_agencia: int
+    numero_apuestas: int
+    apuestas: List[Bet]
+
+    def serialize(self) -> bytes:
+        raise InvalidServerMessage("Server should not send ENVIO_BATCH messages")
+
+
+@dataclass
+class ConfirmacionRecepcionMessage(Message):
+    tipo_mensaje: int = MessageType.CONFIRMACION_RECEPCION
+    confirmacion: int  # 0=exito, 1=error
+
+    def serialize(self) -> bytes:
+        tipo_mensaje_byte = self.tipo_mensaje.to_bytes(1, byteorder='big')
+        confirmacion_byte = self.confirmacion.to_bytes(1, byteorder='big')
+
+        return tipo_mensaje_byte + confirmacion_byte
+
+@dataclass
+class SolicitudGanadoresMessage(Message):
+    tipo_mensaje: int = MessageType.SOLICITUD_GANADORES
+    id_agencia: int
+
+    def serialize(self) -> bytes:
+        raise InvalidServerMessage("Server should not send SOLICITUD_GANADORES messages")
+
+@dataclass
+class SorteoNoRealizadoMessage(Message):
+    tipo_mensaje: int = MessageType.SORTEO_NO_REALIZADO
+
+    def serialize(self) -> bytes:
+        return bytes([self.tipo_mensaje.to_bytes(1, byteorder='big')])
+
+@dataclass
+class RespuestaGanadoresMessage(Message):
+    tipo_mensaje: int = MessageType.RESPUESTA_GANADORES
+    cant_ganadores: int
+    dnis_ganadores: List[int]
+
+    def serialize(self) -> bytes:
+        tipo_mensaje_byte = self.tipo_mensaje.to_bytes(1, byteorder='big')
+        cant_ganadores_byte = self.cant_ganadores.to_bytes(4, byteorder='big')
+        dnis_ganadores_bytes = b''.join(dni.to_bytes(4, byteorder='big') for dni in self.dnis_ganadores)
+
+        return tipo_mensaje_byte + cant_ganadores_byte + dnis_ganadores_bytes
 
 class Communication:
     def __init__(self, socket):
         self.__socket = socket
+        
+    def leer_mensaje_socket(self):
+        self.__ensure_socket()
+        tipo_mensaje = self.__read_one_byte()
+        if tipo_mensaje == MessageType.ENVIO_BATCH:
+            return self._leer_mensaje_envio_batch()
+        elif tipo_mensaje == MessageType.SOLICITUD_GANADORES:
+            return self._leer_mensaje_solicitud_ganadores()
+        
+        elif tipo_mensaje == MessageType.CONFIRMACION_RECEPCION:
+            raise InvalidServerMessage("Server should not receive CONFIRMACION_RECEPCION messages")
+        elif tipo_mensaje == MessageType.SORTEO_NO_REALIZADO:
+            raise InvalidServerMessage("Server should not receive SORTEO_NO_REALIZADO messages")
+        elif tipo_mensaje == MessageType.RESPUESTA_GANADORES:
+            raise InvalidServerMessage("Server should not receive RESPUESTA_GANADORES messages")
+        else:
+            raise ValueError("Unknown message type")
+        
+    def receive_bet_batch(self) -> list[Bet]:
+        mensaje = self.leer_mensaje_socket()
+        if isinstance(mensaje, EnvioBatchMessage):
+            return mensaje.apuestas
+        raise InvalidMessageType("Expected EnvioBatchMessage")
 
+    def receive_solicitud_ganador(self) -> SolicitudGanadoresMessage:
+        mensaje = self.leer_mensaje_socket()
+        if isinstance(mensaje, SolicitudGanadoresMessage):
+            return mensaje
+        raise InvalidMessageType("Expected SolicitudGanadoresMessage")
+
+    def escribir_mensaje_socket(self, mensaje: Message):
+        self.__ensure_socket()
+        self.__socket.sendall(mensaje.serialize())
+
+    def send_sorteo_no_realizado(self):
+        self.__ensure_socket()
+        mensaje = SorteoNoRealizadoMessage()
+        self.__socket.sendall(mensaje.serialize())
+        
+    def send_ganadores_sorteo(self, ganadores: List[int]):
+        self.__ensure_socket()
+        mensaje = RespuestaGanadoresMessage(cant_ganadores=len(ganadores), dnis_ganadores=ganadores)
+        self.__socket.sendall(mensaje.serialize())
+
+    def _leer_mensaje_envio_batch(self):
+        id_agencia = self.__read_uint32()
+        numero_apuestas = self.__read_one_byte()
+        apuestas = [self.__recieve_single_bet(id_agencia) for _ in range(numero_apuestas)]
+        return EnvioBatchMessage(id_agencia=id_agencia, numero_apuestas=numero_apuestas, apuestas=apuestas)
+
+    def _leer_mensaje_solicitud_ganadores(self):
+        id_agencia = self.__read_uint32()
+        return SolicitudGanadoresMessage(id_agencia=id_agencia)
 
     def __ensure_socket(self):
         if self.__socket is None:
             raise SocketNotInitializedError("Socket is not initialized")
-        
-    def recieve_bet_batch(self) -> list[Bet]:
-        id_agency, batch_size = self.__recieve_batch_header()
-        return [self.__recieve_single_bet(id_agency) for _ in range(batch_size)]
 
-    def __recieve_batch_header(self) -> tuple[int, int]:
-        self.__ensure_socket()
-        agency = self.__read_uint32()
-        batch_size = self.__read_one_byte()
-        return agency, batch_size
+    
 
     def __recieve_single_bet(self, agency) -> Bet:
         _len_bet_actual = self.__read_one_byte()
-        
         nombre = self.__read_null_terminated_string()
         apellido = self.__read_null_terminated_string()
         documento = self.__read_uint32()
         fecha_nacimiento = self.__read_null_terminated_string()
         numero = self.__read_uint32()
-
         documento_str = str(documento)
         numero_str = str(numero)
-
         return Bet(agency=agency, first_name=nombre, last_name=apellido, document=documento_str, birthdate=fecha_nacimiento, number=numero_str)
 
-    def send_ok(self):
+    def send_confirmacion_recepcion_ok(self):
         self.__ensure_socket()
-        self.__socket.sendall(bytes([0]))
+        mensaje = ConfirmacionRecepcionMessage(confirmacion=0)
+        self.__socket.sendall(mensaje.serialize())
 
-    def send_error(self, error=1):
+    def send_confirmacion_recepcion_error(self, error=1):
         self.__ensure_socket()
-        self.__socket.sendall(bytes([error]))
+        mensaje = ConfirmacionRecepcionMessage(confirmacion=error)
+        self.__socket.sendall(mensaje.serialize())
 
     def close(self):
         if self.__socket:
             self.__socket.close()
             self.__socket = None
-
 
     def __read_one_byte(self):
         byte = self.__recvall(1)
