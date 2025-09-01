@@ -11,10 +11,11 @@ var log = logging.MustGetLogger("log")
 
 // ClientConfig Configuration used by the client
 type ClientConfig struct {
-	ID            uint32
-	ServerAddress string
-	LoopAmount    int
-	LoopPeriod    time.Duration
+	ID              uint32
+	ServerAddress   string
+	LoopAmount      int
+	LoopPeriod      time.Duration
+	MaxBetsPerBatch int
 }
 
 // Client Entity that encapsulates how
@@ -38,7 +39,7 @@ func NewClient(config ClientConfig) *Client {
 // failure, error is printed in stdout/stderr and exit 1
 // is returned
 func (c *Client) createClientCommunication() error {
-	comm, err := CreateCommunication(c.config.ServerAddress)
+	comm, err := CreateCommunication(c.config.ServerAddress, c.config.MaxBetsPerBatch)
 	if err != nil {
 		log.Criticalf(
 			"action: connect | result: fail | client_id: %v | error: %v",
@@ -82,50 +83,70 @@ func (c *Client) StartClientLoop() {
 
 func (c *Client) MakeBet() error {
 	log.Infof("action: crear_apuesta | result: in_progress | client_id: %v", c.config.ID)
-	bet, err := newBetFromEnv(c.config.ID)
+	bet, err := ReadBetsOfAgency(c.config.ID)
+
 	if err != nil {
 		log.Errorf("action: crear_apuesta | result: fail | client_id: %v | error: %v",
 			c.config.ID,
 			err,
 		)
-		return errors.New("failed to create bet")
+		return errors.New("failed to read bets from agency")
 	}
+
+	batches := divideBetsInBatches(bet, c.config.MaxBetsPerBatch)
 
 	// Send the bet to the server
 	c.createClientCommunication()
 
-	err = c.comm.SendBet(bet)
-	if err != nil {
-		log.Errorf("action: apuesta_enviada | result: fail | client_id: %v | error: %v",
-			c.config.ID,
-			err,
-		)
+	apuestas_enviadas := 0
 
-		c.StopClient()
-		return errors.New("failed to send bet to server")
+	for _, batch := range batches {
+		if c.stopped {
+			log.Infof("action: apuesta_enviada | result: stopped | client_id: %v", c.config.ID)
+			return errors.New("client stopped")
+		}
+
+		err = c.comm.SendBetsBatch(batch)
+		if err != nil {
+			log.Errorf("action: apuesta_enviada | result: fail | client_id: %v | error: %v",
+				c.config.ID,
+				err,
+			)
+			c.StopClient()
+			return errors.New("failed to send bet batch to server")
+		}
+
+		resp, err := c.comm.RecieveConfirmation()
+		if err != nil {
+			log.Errorf("action: apuesta_enviada | result: fail | error: %v",
+				err,
+			)
+			c.StopClient()
+			return errors.New("failed to receive response from server")
+		}
+		if resp != 0 {
+			log.Errorf("action: apuesta_enviada | result: fail | code: %v",
+				resp,
+			)
+			c.StopClient()
+			return errors.New("server returned error code")
+		}
+
+		apuestas_enviadas += len(batch)
+		log.Infof("action: apuesta_enviada | result: in_progress | cantidad_acumulada: %v", apuestas_enviadas)
+
+		if err := c.comm.ResetConnection(); err != nil {
+			log.Errorf("action: apuesta_enviada | result: fail | error: %v",
+				err,
+			)
+			c.StopClient()
+			return errors.New("failed to reset connection")
+		}
 	}
 
-	log.Infof("action: apuesta_enviada | result: in_progress | dni: %v | numero: %v", bet.document, bet.number)
+	log.Infof("action: apuesta_enviada | result: success | cantidad_total: %v", apuestas_enviadas)
 
-	resp, err := c.comm.RecieveConfirmation()
-
-	c.comm.Close()
-	c.comm = nil
-
-	if err != nil {
-		log.Errorf("action: apuesta_enviada | result: fail | error: %v",
-			err,
-		)
-		return errors.New("failed to receive response from server")
-	}
-	if resp != 0 {
-		log.Errorf("action: apuesta_enviada | result: fail | code: %v",
-			resp,
-		)
-		return errors.New("server returned error code")
-	}
-
-	log.Infof("action: apuesta_enviada | result: success | dni: %v | numero: %v", bet.document, bet.number)
+	c.StopClient()
 
 	return nil
 }
@@ -140,4 +161,16 @@ func (c *Client) StopClient() {
 		c.comm = nil
 	}
 
+}
+
+func divideBetsInBatches(bets []Bet, batchSize int) [][]Bet {
+	var batches [][]Bet
+	for i := 0; i < len(bets); i += batchSize {
+		end := i + batchSize
+		if end > len(bets) {
+			end = len(bets)
+		}
+		batches = append(batches, bets[i:end])
+	}
+	return batches
 }

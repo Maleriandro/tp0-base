@@ -195,6 +195,28 @@ La cantidad máxima de apuestas dentro de cada _batch_ debe ser configurable des
 
 Por su parte, el servidor deberá responder con éxito solamente si todas las apuestas del _batch_ fueron procesadas correctamente.
 
+> #### Resoución:
+> Para poder enviar más de un bet en un mensaje de apuesta, modifico ligeramente el protocolo, y el formato del mensaje.
+> Se mantiene el protocolo, en el sentido de que primero se envia un mensaje de apuesta (que ahora puede contener más de una apuesta), y luego el servidor responde con 1 byte indicando exito u error.
+> El cliente puede enviar un unico mensaje de apuestas por conexion.
+>
+> El mensaje de apuesta se modifica, no solo para poder enviar muchas bets en un unico mensaje, sino para achicar el tamaño maximo posible de una bet en particular, así poder incluir más bets en un unico mensaje sin superar los 8kb.
+>
+>```
+>| id_agencia (4bytes big-endian)        |
+>| numero de apuestas (1byte)            |  max 99
+>| ------------------------------------- |
+>| len apuesta actual (1byte)            |
+>| len nombre (null terminated string)   |  max 30 chars, including null
+>| len apellido (null terminated string) |  max 30 chars, including null
+>| DNI (4bytes big-endian)               |
+>| cumpleaños (null terminated string)   |  max 11 chars, including null
+>| numero (4bytes big-endian)            |
+>```
+>
+>Con este nuevo formato, cada apuesta puede ocupar como máximo 1+30+30+4+11+4 = 80 bytes.
+>Por lo que podemos obtener la cantidad máxima de apuestas que se pueden enviar en un único mensaje. 8000 bytes / 80 bytes = 100 apuestas. Para darle espacio al header, hago que el máximo numero de apuestas por mensaje sea 99.
+
 ### Ejercicio N°7:
 
 Modificar los clientes para que notifiquen al servidor al finalizar con el envío de todas las apuestas y así proceder con el sorteo.

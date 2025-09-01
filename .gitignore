@@ -3,3 +3,7 @@
 
 # Executables
 bin/
+
+*.csv
+
+docker-compose-dev.yaml

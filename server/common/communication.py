@@ -11,20 +11,30 @@ class Communication:
     def __ensure_socket(self):
         if self.__socket is None:
             raise SocketNotInitializedError("Socket is not initialized")
+        
+    def recieve_bet_batch(self) -> list[Bet]:
+        id_agency, batch_size = self.__recieve_batch_header()
+        return [self.__recieve_single_bet(id_agency) for _ in range(batch_size)]
 
-    def recieve_bet(self):
+    def __recieve_batch_header(self) -> tuple[int, int]:
         self.__ensure_socket()
         agency = self.__read_uint32()
-        first_name = self.__read_next_string()
-        last_name = self.__read_next_string()
-        document = self.__read_uint32()
-        birthdate = self.__read_next_string()
-        number = self.__read_uint32()
+        batch_size = self.__read_one_byte()
+        return agency, batch_size
 
-        document_str = str(document)
-        number_str = str(number)
+    def __recieve_single_bet(self, agency) -> Bet:
+        _len_bet_actual = self.__read_one_byte()
+        
+        nombre = self.__read_null_terminated_string()
+        apellido = self.__read_null_terminated_string()
+        documento = self.__read_uint32()
+        fecha_nacimiento = self.__read_null_terminated_string()
+        numero = self.__read_uint32()
 
-        return Bet(agency=agency, first_name=first_name, last_name=last_name, document=document_str, birthdate=birthdate, number=number_str)
+        documento_str = str(documento)
+        numero_str = str(numero)
+
+        return Bet(agency=agency, first_name=nombre, last_name=apellido, document=documento_str, birthdate=fecha_nacimiento, number=numero_str)
 
     def send_ok(self):
         self.__ensure_socket()
@@ -41,17 +51,18 @@ class Communication:
 
 
     def __read_one_byte(self):
-        byte = self.__socket.recv(1)
+        byte = self.__recvall(1)
         if not byte:
             raise ValueError("Failed to read byte")
         return byte[0]
 
-    def __read_next_string(self):
-        length = self.__read_one_byte()
-        return self.__read_string(length)
-
-    def __read_string(self, n):
-        string_bytes = self.__recvall(n)
+    def __read_null_terminated_string(self):
+        string_bytes = bytearray()
+        while True:
+            byte = self.__recvall(1)
+            if byte == b'\x00':
+                break
+            string_bytes.extend(byte)
         return string_bytes.decode("utf-8")
 
     def __read_uint32(self):

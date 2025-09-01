@@ -46,6 +46,7 @@ cat >> "$1" <<EOL
       - server
     volumes:
       - ./client/config.yaml:/config.yaml
+      - ./.data/agency-$i.csv:/agency.csv
 EOL
 done
 

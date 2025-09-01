@@ -110,10 +110,11 @@ func main() {
 	PrintConfig(v)
 
 	clientConfig := common.ClientConfig{
-		ServerAddress: v.GetString("server.address"),
-		ID:            v.GetUint32("id"),
-		LoopAmount:    v.GetInt("loop.amount"),
-		LoopPeriod:    v.GetDuration("loop.period"),
+		ServerAddress:   v.GetString("server.address"),
+		ID:              v.GetUint32("id"),
+		LoopAmount:      v.GetInt("loop.amount"),
+		LoopPeriod:      v.GetDuration("loop.period"),
+		MaxBetsPerBatch: v.GetInt("batch.maxAmount"),
 	}
 
 	client := common.NewClient(clientConfig)
