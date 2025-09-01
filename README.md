@@ -177,6 +177,10 @@ Se deberá implementar un módulo de comunicación entre el cliente y el servido
 >```
 >Siendo este `byte = 0`, en caso de exito, y otro entero en caso de error.
 >
+> Para enviar apuestas, primero el cliente debe conectarse al servidor. Una vez conectado, puede enviarle una unica apuesta, y esperar a la confirmación del cliente. Una vez confirmada la apuesta, la conexion es completada, y tanto el cliente como servidor se desconectan de este socket.
+> Si se desea enviar nuevas apuestas, se debe iniciar una nueva conexion.
+> Esto es así, para permitir que multiples clientes envien sus apuestas, sin tener que esperar necesariamente a que otro cliente envie la enteridad de sus propias apuestas, ya que el servidor solo puede atender un cliente a la vez.
+>
 >Para prevenir short-write y short read, para ambos modulos de comunicacion, implementé funciones de lectura y/o escritura, que aseguren la completitud del mensaje. Esto es: cada vez que hago un write o read, me fijo si recibí todos los bytes esperados. En el caso de no haberlo hecho, hago de nuevo la llamada (tenidneo en cuenta que tengo que ya no tengo que pedir los bytes que ya recibí).
 >
 >> En particular, python ya implementa una funcion sendall, por lo que la version de send en el servidor no es necesario implementarla.
