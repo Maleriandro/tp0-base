@@ -64,14 +64,13 @@ class Server:
         try:
             logging.info(f"action: esperando_recibir_apuesta | result: in_progress")
             bets: list[Bet] = self._current_client_communication.recieve_bet_batch()
-            logging.info(f"action: apuesta_recibida | result: success")
+            logging.info(f"action: apuesta_recibida | result: success | cantidad: {len(bets)}")
             store_bets(bets)
-            logging.info(f"action: apuesta_almacenada | result: success | cantidad: {len(bets)}")
 
             self._current_client_communication.send_ok()
             
         except OSError as e:
-            logging.error(f"action: receive_message | result: fail | cantidad: {len(bets)}")
+            logging.error(f"action: apuesta_recibida | result: fail | cantidad: {len(bets)}")
             self._current_client_communication.send_error()
         finally:
             if self._current_client_communication:
