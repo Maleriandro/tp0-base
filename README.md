@@ -247,6 +247,65 @@ Las funciones `load_bets(...)` y `has_won(...)` son provistas por la cátedra y 
 
 No es correcto realizar un broadcast de todos los ganadores hacia todas las agencias, se espera que se informen los DNIs ganadores que correspondan a cada una de ellas.
 
+> #### Resolución
+> Para esta parte, se tiene que modificar nuevamente el protocolo.
+> Como minimo deben agregarse 3 mensajes.
+> - Uno que indique que el cliente terminó de enviar todas las apuestas. En este caso decidí que el cliente envie un batch de tamaño 0.
+> - Uno para que el cliente solicite la lista de ganadores.
+> - Uno para que el servidor informe la lista de ganadores, (o que el sorteo todavía no fue realizado).
+>
+> Para agregar estos tipos de mensajes, decido agregarle a todos los mensajes un header de 1byte, seguido de un body, de la siguiente manera
+> ```
+> | tipo_mensaje (1byte)                 |
+> | -------------------------------------|
+> | body (ver más abajo)                 |
+> ```
+>
+> Los valores para el tipo de mensaje, y como serían sus bodys, se describen a continuacion:
+>
+> ENVIO_BATCH = 1
+>```
+>| id_agencia (4bytes big-endian)        |
+>| numero de apuestas (1byte)            |  max 99. 0 en caso de que no haya más apuestas.
+>| ------------------------------------- |
+>| len apuesta actual (1byte)            |
+>| len nombre (null terminated string)   |  max 30 chars, including null
+>| len apellido (null terminated string) |  max 30 chars, including null
+>| DNI (4bytes big-endian)               |
+>| cumpleaños (null terminated string)   |  max 11 chars, including null
+>| numero (4bytes big-endian)            |
+>```
+
+> CONFIRMACION_RECEPCION = 2
+> ```
+> | confirmacion (1byte)                 | 0 en caso de exito, 1 en caso de error
+> ```
+
+> SOLICITUD_GANADORES = 3
+> ```
+> | id_agencia (4bytes big-endian)        |
+> ```
+
+> RESPUESTA_GANADORES = 4
+> | cant_ganadores (4bytes big-endian) |
+> | ---------------------------------- |
+> | DNI ganador 1 (4bytes big-endian)  |
+> |               (...)                |
+> | DNI ganador N (4bytes big-endian)  |
+
+> El flujo sería entonces:
+> 1. El cliente se conecta al servidor
+> 2. El cliente envia un batch de tamaño > 0
+> 3. El servidor responde con una confirmación
+> 4. La conexion se cierra (para permitir otros clientes)
+> 5. Si el cliente tiene más apuestas, puede volver al paso 1.
+> 6. El cliente se conecta al servidor.
+> 7. El cliente envía solicitud de ganadores.
+> 8.1. El servidor todavía no recibió todas las apuestas, le responde que el sorteo no fue finalizado. Cierra la conexion y vuelve al punto 6.
+> 8.2. El servidor ya recibió todas las apuestas, verifica los ganadores y responde con la lista de ganadores para éste cliente. Cierra la conexion.
+
+
+
 ## Parte 3: Repaso de Concurrencia
 En este ejercicio es importante considerar los mecanismos de sincronización a utilizar para el correcto funcionamiento de la persistencia.
 
