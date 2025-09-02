@@ -142,7 +142,7 @@ func SerializeBets(bets []Bet) []byte {
 	header[4] = byte(len(bets))
 
 	result := append(header, serializedBets[0]...)
-	for i := 1; i < len(serializedBets); i++ {
+	for i := 0; i < len(serializedBets); i++ {
 		result = append(result, serializedBets[i]...)
 	}
 	return result
