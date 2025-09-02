@@ -141,7 +141,9 @@ func SerializeBets(bets []Bet) []byte {
 	binary.BigEndian.PutUint32(header[:4], bets[0].agency)
 	header[4] = byte(len(bets))
 
-	result := append(header, serializedBets[0]...)
+	result := make([]byte, 0)
+	result = append(result, header...)
+
 	for i := 0; i < len(serializedBets); i++ {
 		result = append(result, serializedBets[i]...)
 	}
