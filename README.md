@@ -249,7 +249,7 @@ No es correcto realizar un broadcast de todos los ganadores hacia todas las agen
 
 > #### Resolución
 > Para esta parte, se tiene que modificar nuevamente el protocolo.
-> Como minimo deben agregarse 3 mensajes.
+> Como minimo deben agregarse 4 mensajes.
 > - Uno que indique que el cliente terminó de enviar todas las apuestas. En este caso decidí que el cliente envie un batch de tamaño 0.
 > - Uno para que el cliente solicite la lista de ganadores.
 > - Uno para que el servidor informe la lista de ganadores.
@@ -311,6 +311,14 @@ No es correcto realizar un broadcast de todos los ganadores hacia todas las agen
 > 10.1. El servidor todavía no recibió todas las apuestas, le responde que el sorteo no fue finalizado. Cierra la conexion y vuelve al punto 6.
 > 10.2. El servidor ya recibió todas las apuestas, verifica los ganadores y responde con la lista de ganadores para éste cliente (o 0 si ningun DNI de este cliente ganó). Cierra la conexion.
 >
+> En cuanto a las modificaciones que tuve que realizarle al servidor para acomodarse al nuevo protocolo, primero agregué en el loop printipal una funcion que se ocupa de recibir los 2 tipos de mensaje que puede recibir, y hacer algo al respecto.
+> 
+> En particular, si recibe un envio batch, se encarga de leer todas las apuestas y almacenarlas. 
+> En el caso de que el batch sea te tamaño 0, agrega en un set de elementos, la agencia que ya terminó de enviar todos sus bets.
+>
+> En cambio, si recibe una solicitud de ganadores, verifica si ya se realizó el sorteo. Si no, responde que el sorteo no fue finalizado. Si ya se realizó, responde con la lista de ganadores para esa agencia.
+>
+> Para saber si el sorteo ya se realizó, en el loop principal, cada vez que algun cliente se desconecta, el servidor checkea si ya todas las agencias terminaron de enviar sus apuestas. Si es así, realiza el sorteo, y almacena los ganadores para cada agencia, y setea un flag indicando que el sorteo ya fue realizado.
 >
 >> Tuve un problema con la transmision de mensajes por el socket, que no lograba encontrar. Para resolverlo decidí utilizar wireshark, y poder ver el trafico de red real. Para poder ver mejor los paquetes enviados,implementé (con ayuda de LLM) un decodificador de paquetes personalizado en Lua para Wireshark. Esto me permitió filtrar y visualizar los mensajes específicos de mi protocolo, facilitando la identificación de problemas en la comunicación. Este decodificador es el que se encuentra en el archivo `custom.lua`
 
