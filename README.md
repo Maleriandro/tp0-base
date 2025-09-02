@@ -249,7 +249,7 @@ No es correcto realizar un broadcast de todos los ganadores hacia todas las agen
 
 > #### Resolución
 > Para esta parte, se tiene que modificar nuevamente el protocolo.
-> Como minimo deben agregarse 3 mensajes.
+> Como minimo deben agregarse 4 mensajes.
 > - Uno que indique que el cliente terminó de enviar todas las apuestas. En este caso decidí que el cliente envie un batch de tamaño 0.
 > - Uno para que el cliente solicite la lista de ganadores.
 > - Uno para que el servidor informe la lista de ganadores.
