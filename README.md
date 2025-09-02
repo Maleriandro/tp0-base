@@ -269,9 +269,8 @@ No es correcto realizar un broadcast de todos los ganadores hacia todas las agen
 >| id_agencia (4bytes big-endian)        |
 >| numero de apuestas (1byte)            |  max 99. 0 en caso de que no haya más apuestas.
 >| ------------------------------------- |
->| len apuesta actual (1byte)            |
->| len nombre (null terminated string)   |  max 30 chars, including null
->| len apellido (null terminated string) |  max 30 chars, including null
+>| nombre (null terminated string)       |  max 30 chars, including null
+>| apellido (null terminated string)     |  max 30 chars, including null
 >| DNI (4bytes big-endian)               |
 >| cumpleaños (null terminated string)   |  max 11 chars, including null
 >| numero (4bytes big-endian)            |
@@ -311,6 +310,9 @@ No es correcto realizar un broadcast de todos los ganadores hacia todas las agen
 > 9. El cliente envía solicitud de ganadores.
 > 10.1. El servidor todavía no recibió todas las apuestas, le responde que el sorteo no fue finalizado. Cierra la conexion y vuelve al punto 6.
 > 10.2. El servidor ya recibió todas las apuestas, verifica los ganadores y responde con la lista de ganadores para éste cliente (o 0 si ningun DNI de este cliente ganó). Cierra la conexion.
+>
+>
+>> Tuve un problema con la transmision de mensajes por el socket, que no lograba encontrar. Para resolverlo decidí utilizar wireshark, y poder ver el trafico de red real. Para poder ver mejor los paquetes enviados,implementé (con ayuda de LLM) un decodificador de paquetes personalizado en Lua para Wireshark. Esto me permitió filtrar y visualizar los mensajes específicos de mi protocolo, facilitando la identificación de problemas en la comunicación. Este decodificador es el que se encuentra en el archivo `custom.lua`
 
 
 

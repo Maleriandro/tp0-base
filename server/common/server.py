@@ -20,7 +20,7 @@ class Server:
         self._agencias_que_completaron_envio = set()
 
         self._sorteo_realizado = False
-        self._dnis_ganadores_por_agencia: Dict[int, List[str]] = dict()
+        self._dnis_ganadores_por_agencia: Dict[int, List[int]] = dict()
 
         signal.signal(signal.SIGTERM, self.__stop_server)
 
@@ -32,6 +32,7 @@ class Server:
         # Cerrar socket servidor
         logging.debug("action: stop_server_socket | result: in_progress")
         if self._server_socket:
+            self._server_socket.shutdown(socket.SHUT_RDWR)
             self._server_socket.close()
         self._server_socket = None
         logging.debug("action: stop_server_socket | result: success")
@@ -82,7 +83,7 @@ class Server:
 
             if agencia not in self._dnis_ganadores_por_agencia:
                 self._dnis_ganadores_por_agencia[agencia] = []
-            self._dnis_ganadores_por_agencia[agencia].append(dni)
+            self._dnis_ganadores_por_agencia[agencia].append(int(dni))
 
     def __handle_client_connection(self):
         """
@@ -96,7 +97,7 @@ class Server:
             self.recibir_mensajes()
             
         except Exception as e:
-            logging.error(f"action: apuesta_recibida | result: fail | cantidad: 0 | error: {e}")
+            logging.error(f"action: apuesta_recibida | result: fail | cantidad: 0 | error: {e} | file: {traceback.extract_tb(e.__traceback__)[-1].filename} | line: {traceback.extract_tb(e.__traceback__)[-1].lineno}")
             self._current_client_communication.send_confirmacion_recepcion_error(self, error=1)()
         finally:
             if self._current_client_communication:

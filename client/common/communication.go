@@ -127,8 +127,6 @@ func serializeSingleBet(bet Bet) []byte {
 	serialized = append(serialized, serialized_birthdate...)
 	serialized = append(serialized, uint32ToBytes(bet.number)...)
 
-	serialized[0] = byte(len(serialized))
-
 	return serialized
 }
 

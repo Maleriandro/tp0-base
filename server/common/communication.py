@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 import logging
+import socket
 from common.utils import Bet
 from enum import IntEnum
 from dataclasses import dataclass
@@ -66,7 +67,7 @@ class SorteoNoRealizadoMessage(Message):
     tipo_mensaje: int = MessageType.SORTEO_NO_REALIZADO
 
     def serialize(self) -> bytes:
-        return bytes([self.tipo_mensaje.to_bytes(1, byteorder='big')])
+        return self.tipo_mensaje.to_bytes(1, byteorder='big')
 
 @dataclass
 class RespuestaGanadoresMessage(Message):
@@ -119,14 +120,12 @@ class Communication:
         self.__socket.sendall(mensaje.serialize())
 
     def send_sorteo_no_realizado(self):
-        self.__ensure_socket()
         mensaje = SorteoNoRealizadoMessage()
-        self.__socket.sendall(mensaje.serialize())
-        
+        self.escribir_mensaje_socket(mensaje)
+
     def send_ganadores_sorteo(self, ganadores: List[int]):
-        self.__ensure_socket()
         mensaje = RespuestaGanadoresMessage(cant_ganadores=len(ganadores), dnis_ganadores=ganadores)
-        self.__socket.sendall(mensaje.serialize())
+        self.escribir_mensaje_socket(mensaje)
 
     def _leer_mensaje_envio_batch(self):
         id_agencia = self.__read_uint32()
@@ -156,17 +155,16 @@ class Communication:
         return Bet(agency=agency, first_name=nombre, last_name=apellido, document=documento_str, birthdate=fecha_nacimiento, number=numero_str)
 
     def send_confirmacion_recepcion_ok(self):
-        self.__ensure_socket()
         mensaje = ConfirmacionRecepcionMessage(confirmacion=0)
-        self.__socket.sendall(mensaje.serialize())
+        self.escribir_mensaje_socket(mensaje)
 
     def send_confirmacion_recepcion_error(self, error=1):
-        self.__ensure_socket()
         mensaje = ConfirmacionRecepcionMessage(confirmacion=error)
-        self.__socket.sendall(mensaje.serialize())
+        self.escribir_mensaje_socket(mensaje)
 
     def close(self):
         if self.__socket:
+            self.__socket.shutdown(socket.SHUT_RDWR)
             self.__socket.close()
             self.__socket = None
 
