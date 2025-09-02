@@ -136,7 +136,7 @@ func (c *Client) MakeBetBatch(bets []Bet) error {
 		return errors.New("communication not initialized")
 	}
 
-	err := c.comm.SendBetsBatch(bets)
+	err := c.comm.SendBetsBatch(bets, c.config.ID)
 	if err != nil {
 		return errors.New("failed to send bet batch to server")
 	}
@@ -157,7 +157,7 @@ func (c *Client) SendBetBatchEnd() error {
 		return errors.New("communication not initialized")
 	}
 
-	err := c.comm.SendBetsBatch([]Bet{})
+	err := c.comm.SendBetsBatch([]Bet{}, c.config.ID)
 	if err != nil {
 		return errors.New("failed to send bet batch end to server")
 	}

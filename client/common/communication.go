@@ -55,7 +55,7 @@ func (comm *Communication) ResetConnection() error {
 	return comm.startConnection()
 }
 
-func (comm *Communication) SendBetsBatch(bets []Bet) error {
+func (comm *Communication) SendBetsBatch(bets []Bet, agencyId uint32) error {
 	if comm.conn == nil {
 		return errors.New("there is no connection")
 	}
@@ -64,7 +64,7 @@ func (comm *Communication) SendBetsBatch(bets []Bet) error {
 		return errors.New("too many bets")
 	}
 
-	serializedBets := SerializeBetsBatchMessage(bets)
+	serializedBets := SerializeBetsBatchMessage(bets, agencyId)
 	err := writeAll(comm.conn, serializedBets)
 	return err
 }
@@ -132,7 +132,7 @@ func serializeSingleBet(bet Bet) []byte {
 	return serialized
 }
 
-func SerializeBetsBatchMessage(bets []Bet) []byte {
+func SerializeBetsBatchMessage(bets []Bet, agencyId uint32) []byte {
 	if len(bets) > 255 {
 		return nil
 	}
@@ -146,13 +146,12 @@ func SerializeBetsBatchMessage(bets []Bet) []byte {
 	header_msg[0] = ENVIO_BATCH
 
 	header_body := make([]byte, 5)
-	binary.BigEndian.PutUint32(header_body[:4], bets[0].agency)
+	binary.BigEndian.PutUint32(header_body[:4], agencyId)
 	header_body[4] = byte(len(bets))
 
 	result := append(header_msg, header_body...)
 
-	result = append(result, serializedBets[0]...)
-	for i := 1; i < len(serializedBets); i++ {
+	for i := 0; i < len(serializedBets); i++ {
 		result = append(result, serializedBets[i]...)
 	}
 	return result

@@ -5,6 +5,7 @@ from typing import Dict, List
 
 from common.communication import Communication, EnvioBatchMessage, Message, MessageType, SolicitudGanadoresMessage
 from common.utils import has_won, load_bets, store_bets, Bet
+import traceback
 
 class Server:
     def __init__(self, port, listen_backlog, client_amount):
@@ -95,7 +96,7 @@ class Server:
             self.recibir_mensajes()
             
         except Exception as e:
-            logging.error(f"action: apuesta_recibida | result: fail | cantidad: 0")
+            logging.error(f"action: apuesta_recibida | result: fail | cantidad: 0 | error: {e}")
             self._current_client_communication.send_confirmacion_recepcion_error(self, error=1)()
         finally:
             if self._current_client_communication:
@@ -134,9 +135,10 @@ class Server:
         
         apuestas = mensaje.apuestas
         
-        logging.info(f"action: apuesta_recibida | result: success | cantidad: {len(mensaje.numero_apuestas)}")
+        logging.info(f"action: apuesta_recibida | result: success | cantidad: {mensaje.numero_apuestas}")
         store_bets(apuestas)
         
+        self._current_client_communication.send_confirmacion_recepcion_ok()
         return True
     
 

@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+import logging
 from common.utils import Bet
 from enum import IntEnum
 from dataclasses import dataclass
@@ -27,15 +28,15 @@ class Message(ABC):
     tipo_mensaje: int
     
     @abstractmethod
-    def serializar(self) -> bytes:
+    def serialize(self) -> bytes:
         raise NotImplementedError("Subclasses must implement this method")
 
 @dataclass
 class EnvioBatchMessage(Message):
-    tipo_mensaje: int = MessageType.ENVIO_BATCH
     id_agencia: int
     numero_apuestas: int
     apuestas: List[Bet]
+    tipo_mensaje: int = MessageType.ENVIO_BATCH
 
     def serialize(self) -> bytes:
         raise InvalidServerMessage("Server should not send ENVIO_BATCH messages")
@@ -43,8 +44,8 @@ class EnvioBatchMessage(Message):
 
 @dataclass
 class ConfirmacionRecepcionMessage(Message):
-    tipo_mensaje: int = MessageType.CONFIRMACION_RECEPCION
     confirmacion: int  # 0=exito, 1=error
+    tipo_mensaje: int = MessageType.CONFIRMACION_RECEPCION
 
     def serialize(self) -> bytes:
         tipo_mensaje_byte = self.tipo_mensaje.to_bytes(1, byteorder='big')
@@ -54,8 +55,8 @@ class ConfirmacionRecepcionMessage(Message):
 
 @dataclass
 class SolicitudGanadoresMessage(Message):
-    tipo_mensaje: int = MessageType.SOLICITUD_GANADORES
     id_agencia: int
+    tipo_mensaje: int = MessageType.SOLICITUD_GANADORES
 
     def serialize(self) -> bytes:
         raise InvalidServerMessage("Server should not send SOLICITUD_GANADORES messages")
@@ -69,9 +70,9 @@ class SorteoNoRealizadoMessage(Message):
 
 @dataclass
 class RespuestaGanadoresMessage(Message):
-    tipo_mensaje: int = MessageType.RESPUESTA_GANADORES
     cant_ganadores: int
     dnis_ganadores: List[int]
+    tipo_mensaje: int = MessageType.RESPUESTA_GANADORES
 
     def serialize(self) -> bytes:
         tipo_mensaje_byte = self.tipo_mensaje.to_bytes(1, byteorder='big')
