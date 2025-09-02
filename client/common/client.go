@@ -87,8 +87,6 @@ func (c *Client) StartClientLoop() error {
 			return nil
 		}
 
-		c.comm.startConnection()
-
 		err := c.MakeBetBatch(batches[msgID-1])
 
 		if err != nil {
@@ -99,8 +97,6 @@ func (c *Client) StartClientLoop() error {
 			return err
 		}
 
-		c.comm.stopConnection()
-
 		bets_made += len(batches[msgID-1])
 		log.Infof("action: apuesta_enviada | result: in_progress | cantidad_acumulada: %v", bets_made)
 
@@ -108,8 +104,29 @@ func (c *Client) StartClientLoop() error {
 		time.Sleep(c.config.LoopPeriod)
 	}
 
+	err = c.SendBetBatchEnd()
+	if err != nil {
+		log.Errorf("action: send_bet_batch_end | result: fail | client_id: %v | error: %v",
+			c.config.ID,
+			err,
+		)
+		return err
+	}
+
+	c.comm.Close()
+
 	log.Infof("action: apuesta_enviada | result: success | cantidad_total: %v", bets_made)
-	log.Infof("action: loop_finished | result: success | client_id: %v", c.config.ID)
+
+	result, err := c.comm.GetLotteryResult(c.config.ID)
+	if err != nil {
+		log.Errorf("action: get_lottery_result | result: fail | client_id: %v | error: %v",
+			c.config.ID,
+			err,
+		)
+		return err
+	}
+
+	log.Infof("action: consulta_ganadores | result: success | cant_ganadores: %v", len(result))
 
 	return nil
 }
@@ -119,9 +136,30 @@ func (c *Client) MakeBetBatch(bets []Bet) error {
 		return errors.New("communication not initialized")
 	}
 
-	err := c.comm.SendBetsBatch(bets)
+	err := c.comm.SendBetsBatch(bets, c.config.ID)
 	if err != nil {
 		return errors.New("failed to send bet batch to server")
+	}
+
+	resp, err := c.comm.RecieveConfirmation()
+	if err != nil {
+		return errors.New("failed to receive response from server")
+	}
+	if resp != 0 {
+		return errors.New("server returned error code")
+	}
+
+	return nil
+}
+
+func (c *Client) SendBetBatchEnd() error {
+	if c.comm == nil {
+		return errors.New("communication not initialized")
+	}
+
+	err := c.comm.SendBetsBatch([]Bet{}, c.config.ID)
+	if err != nil {
+		return errors.New("failed to send bet batch end to server")
 	}
 
 	resp, err := c.comm.RecieveConfirmation()

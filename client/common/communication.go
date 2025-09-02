@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"net"
+	"time"
 )
 
 type Communication struct {
@@ -11,6 +12,14 @@ type Communication struct {
 	max_bets_per_batch int
 	server_address     string
 }
+
+const (
+	ENVIO_BATCH            byte = 1
+	CONFIRMACION_RECEPCION byte = 2
+	SOLICITUD_GANADORES    byte = 3
+	SORTEO_NO_REALIZADO    byte = 4
+	RESPUESTA_GANADORES    byte = 5
+)
 
 func CreateCommunication(server_address string, max_bets_per_batch int) (*Communication, error) {
 	conn, err := net.Dial("tcp", server_address)
@@ -46,7 +55,7 @@ func (comm *Communication) ResetConnection() error {
 	return comm.startConnection()
 }
 
-func (comm *Communication) SendBetsBatch(bets []Bet) error {
+func (comm *Communication) SendBetsBatch(bets []Bet, agencyId uint32) error {
 	if comm.conn == nil {
 		return errors.New("there is no connection")
 	}
@@ -55,7 +64,7 @@ func (comm *Communication) SendBetsBatch(bets []Bet) error {
 		return errors.New("too many bets")
 	}
 
-	serializedBets := SerializeBets(bets)
+	serializedBets := SerializeBetsBatchMessage(bets, agencyId)
 	err := writeAll(comm.conn, serializedBets)
 	return err
 }
@@ -64,14 +73,18 @@ func (comm *Communication) RecieveConfirmation() (resp byte, err error) {
 	if comm.conn == nil {
 		return 0, errors.New("there is no connection")
 	}
-	buffer := make([]byte, 1)
+	buffer := make([]byte, 2)
 
 	err = readAll(comm.conn, buffer)
 
 	if err != nil {
 		return 0, err
 	}
-	return buffer[0], nil
+
+	if buffer[0] != CONFIRMACION_RECEPCION {
+		return 0, errors.New("invalid confirmation")
+	}
+	return buffer[1], nil
 }
 
 func (comm *Communication) Close() {
@@ -114,17 +127,10 @@ func serializeSingleBet(bet Bet) []byte {
 	serialized = append(serialized, serialized_birthdate...)
 	serialized = append(serialized, uint32ToBytes(bet.number)...)
 
-	serialized[0] = byte(len(serialized))
-
 	return serialized
 }
 
-func SerializeBets(bets []Bet) []byte {
-
-	if len(bets) == 0 {
-		return nil
-	}
-
+func SerializeBetsBatchMessage(bets []Bet, agencyId uint32) []byte {
 	if len(bets) > 255 {
 		return nil
 	}
@@ -134,15 +140,14 @@ func SerializeBets(bets []Bet) []byte {
 		serializedBets[i] = serializeSingleBet(bet)
 	}
 
-	if len(bets) == 0 {
-		return nil
-	}
-	header := make([]byte, 5)
-	binary.BigEndian.PutUint32(header[:4], bets[0].agency)
-	header[4] = byte(len(bets))
+	header_msg := make([]byte, 1)
+	header_msg[0] = ENVIO_BATCH
 
-	result := make([]byte, 0)
-	result = append(result, header...)
+	header_body := make([]byte, 5)
+	binary.BigEndian.PutUint32(header_body[:4], agencyId)
+	header_body[4] = byte(len(bets))
+
+	result := append(header_msg, header_body...)
 
 	for i := 0; i < len(serializedBets); i++ {
 		result = append(result, serializedBets[i]...)
@@ -162,4 +167,93 @@ func stringToNullEndedBytes(s string, max_size int) []byte {
 		s = s[:max_size]
 	}
 	return append([]byte(s), 0)
+}
+
+func (comm *Communication) GetLotteryResult(agencyId uint32) ([]uint32, error) {
+	defer comm.Close()
+
+	var ganadores []uint32 = nil
+	for {
+		// Como la peticion de winners se hace en una nueva conexion, cierro la que tenía para iniciar una nueva.
+		err := comm.ResetConnection()
+		if err != nil {
+			return nil, err
+		}
+
+		err = comm.sendWinnersRequest(agencyId)
+		if err != nil {
+			return nil, err
+		}
+		ganadores, err = comm.receiveWinnersResponse()
+		if err != nil {
+			return nil, err
+		}
+
+		//Si ganadores deja de ser nil, quiere decir que ya obtuve quienes son los ganadores
+		if ganadores != nil {
+			break
+		}
+
+		//Si sigue siendo nil, tengo que reiniciar la conexion,
+		// esperar un tiempo, y volver a consultar por ganadores
+		time.Sleep(100 * time.Millisecond)
+	}
+
+	return ganadores, nil
+}
+
+func (comm *Communication) sendWinnersRequest(agencyId uint32) error {
+	header := make([]byte, 1)
+	header[0] = SOLICITUD_GANADORES
+
+	agency := uint32ToBytes(agencyId)
+
+	msg := append(header, agency...)
+
+	err := writeAll(comm.conn, msg)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// Devuelve null en caso de que la lotería no se haya realizado,
+// Devuelve un array vacio en caso de que la lotería se haya realizado, pero no hay ningun ganador
+func (comm *Communication) receiveWinnersResponse() ([]uint32, error) {
+	if comm.conn == nil {
+		return nil, errors.New("there is no connection")
+	}
+
+	buffer := make([]byte, 1)
+	err := readAll(comm.conn, buffer)
+	if err != nil {
+		return nil, err
+	}
+
+	if buffer[0] == SORTEO_NO_REALIZADO {
+		return nil, nil
+	}
+	if buffer[0] != RESPUESTA_GANADORES {
+		return nil, errors.New("invalid response from server")
+	}
+
+	cantidadGanadoresBuf := make([]byte, 4)
+	err = readAll(comm.conn, cantidadGanadoresBuf)
+	if err != nil {
+		return nil, err
+	}
+	cantidadGanadores := binary.BigEndian.Uint32(cantidadGanadoresBuf)
+
+	results := make([]uint32, cantidadGanadores)
+	for i := uint32(0); i < cantidadGanadores; i++ {
+		numBuf := make([]byte, 4)
+		err = readAll(comm.conn, numBuf)
+		if err != nil {
+			return nil, err
+		}
+		results[i] = binary.BigEndian.Uint32(numBuf)
+	}
+
+	return results, nil
 }
