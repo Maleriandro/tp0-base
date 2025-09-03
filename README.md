@@ -338,6 +338,17 @@ Modificar el servidor para que permita aceptar conexiones y procesar mensajes en
 > Para hacerlo, lo que hice fue mover toda la logica de comunicarme con un cliente a una clase separada: `ClientHandler`, que a su vez hereda de `threading.Thread`.
 > Cuando se crea este cliente, se le asigna un socket y se inicia un nuevo hilo para manejar la comunicación con ese cliente.
 > Todas las operaciones que puede hacer sin interferir con el estado general del servidor, las hace por si solas. Pero cada vez que necesita acceder a recursos compartidos, como almacenar las apuestas, debe llamar a una funcion de servidor, que se encarga de hacer el guardado de manera segura, utilizando Locks para prevenir que multiples hilos accedan a la misma informacion al mismo tiempo.
+>
+> En particular, las operaciones que requieren sincronizacion son:
+> - El almacenamiento de las apuestas. (Una vez todas las apuestas fueron almacenadas, deja de requerir sincronización, ya que unicamente el thread principal del servidor puede leer las apuestas para realizar el sorteo).
+> - El set de agencias que ya terminaron de enviar sus apuestas, ya que tanto el servidor lo lee para verificar si ya se puede realizar el sorteo, como los threads de los clientes lo modifican para indicar que ya terminaron.
+> - El flag que indica si el sorteo ya fue realizado, ya que tanto el servidor lo lee para verificar si puede responder con la lista de ganadores, como los threads de los clientes lo leen para saber si pueden responder con la lista de ganadores.
+> - El diccionario que contiene la lista de ganadores por agencia, ya que tanto el servidor lo escribe una vez que se realiza el sorteo, como los threads de los clientes lo leen para responder con la lista de ganadores.
+>
+> Para el primero, utilicé un `threading.Lock`, separado de la funcion `store_bets()`, ya que la funcion es llamada de un unico lugar, y no se me ocurrio como hacer que la funcion misma se encargue de la sincronizacion sin modificar la funcion.
+> Para los otros 3 cree una clase `ThreadSafeValue`, que encapsula la variable, haciendo que sea imposible acceder a ella a menos que se tome el lock asociado al valor.
+>
+> Por ultimo, modifique el socket que recibe las conexiones. Antes este socket bloqueaba indefinidamente el thread principal del servidor, hasta que un cliente se conectaba. Ahora, este socket tiene un timeout de 1 segundo. Si no se conecta ningun cliente en ese tiempo, el accept lanza una excepcion, que es capturada, y permite que el thread principal del servidor pueda seguir su ejecucion, y verificar si ya se puede realizar el sorteo, además de liberar los `ClientHandler` que ya terminaron su ejecucion.
 
 ## Condiciones de Entrega
 Se espera que los alumnos realicen un _fork_ del presente repositorio para el desarrollo de los ejercicios y que aprovechen el esqueleto provisto tanto (o tan poco) como consideren necesario.
