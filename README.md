@@ -210,7 +210,6 @@ Por su parte, el servidor deberá responder con éxito solamente si todas las ap
 >| id_agencia (4bytes big-endian)        |
 >| numero de apuestas (1byte)            |  max 99
 >| ------------------------------------- |
->| len apuesta actual (1byte)            |
 >| len nombre (null terminated string)   |  max 30 chars, including null
 >| len apellido (null terminated string) |  max 30 chars, including null
 >| DNI (4bytes big-endian)               |
@@ -218,8 +217,8 @@ Por su parte, el servidor deberá responder con éxito solamente si todas las ap
 >| numero (4bytes big-endian)            |
 >```
 >
->Con este nuevo formato, cada apuesta puede ocupar como máximo 1+30+30+4+11+4 = 80 bytes.
->Por lo que podemos obtener la cantidad máxima de apuestas que se pueden enviar en un único mensaje. 8000 bytes / 80 bytes = 100 apuestas. Para darle espacio al header, hago que el máximo numero de apuestas por mensaje sea 99.
+>Con este nuevo formato, cada apuesta puede ocupar como máximo 30+30+4+11+4 = 79 bytes.
+>Por lo que podemos obtener la cantidad máxima de apuestas que se pueden enviar en un único mensaje. 8000 bytes / 79 bytes ≈ 101 apuestas = 7979 bytes. Por lo que puedo enviar por batch 101 apuestas, ya que me queda suficiente espacio como para mandar el header.
 >
 > Similar al ejercicio anterior, el cliente puede enviar un unico batch de apuestas por cada conexion. Para permitir que otros clientes intercalen sus batches, y evitar que un cliente tenga que esperar demasiado a que otro cliente termine.
 >
