@@ -16,11 +16,11 @@ class ClientHandler(threading.Thread):
 
     def run(self):
         try:
-            logging.info(f"thread: {self.name} | action: esperando_recibir_mensaje | result: in_progress")
+            logging.info(f"action: esperando_recibir_mensaje | result: in_progress | thread: {self.name}")
             self.recibir_mensajes()
         except Exception as e:
             import traceback
-            logging.error(f"thread: {self.name} | action: apuesta_recibida | result: fail | cantidad: 0 | error: {e} | file: {traceback.extract_tb(e.__traceback__)[-1].filename} | line: {traceback.extract_tb(e.__traceback__)[-1].lineno}")
+            logging.error(f"action: apuesta_recibida | result: fail | cantidad: 0 | error: {e} | file: {traceback.extract_tb(e.__traceback__)[-1].filename} | line: {traceback.extract_tb(e.__traceback__)[-1].lineno} | thread: {self.name}")
             self.communication.send_confirmacion_recepcion_error()
         finally:
             self.communication.close()
@@ -37,7 +37,7 @@ class ClientHandler(threading.Thread):
             try:
                 mensaje = self.communication.leer_mensaje_socket()
             except ConexionCerradaPorCliente:
-                logging.info(f"thread: {self.name} | action: conexion_cerrada | result: success")
+                logging.info(f"action: conexion_cerrada | result: success | thread: {self.name}")
                 self.stopped = True
                 break
                 
@@ -61,7 +61,7 @@ class ClientHandler(threading.Thread):
         
         apuestas = mensaje.apuestas
 
-        logging.info(f"thread: {self.name} | action: apuesta_recibida | result: success | cantidad: {mensaje.numero_apuestas}")
+        logging.info(f"action: apuesta_recibida | result: success | cantidad: {mensaje.numero_apuestas} | thread: {self.name}")
         self.server.almacenar_bets(apuestas)
         
         self.communication.send_confirmacion_recepcion_ok()
