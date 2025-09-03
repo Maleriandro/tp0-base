@@ -2,7 +2,6 @@ package common
 
 import (
 	"errors"
-	"io"
 	"time"
 
 	"github.com/op/go-logging"
@@ -89,10 +88,6 @@ func (c *Client) StartClientLoop() error {
 
 		batch, err := reader.NextBatch()
 		if err != nil {
-			if errors.Is(err, io.EOF) {
-				// Si es EOF, terminar el loop
-				break
-			}
 			// Si el error es otro, printear el error y retornar.
 			log.Errorf("action: leer_apuestas | result: fail | client_id: %v | error: %v",
 				c.config.ID,
@@ -101,6 +96,7 @@ func (c *Client) StartClientLoop() error {
 			return err
 		}
 		if len(batch) == 0 {
+			// Si el batch es vacío, quiere decir que no hay más bets
 			break
 		}
 
@@ -161,16 +157,4 @@ func (c *Client) StopClient() {
 		c.comm = nil
 	}
 
-}
-
-func divideBetsInBatches(bets []Bet, batchSize int) [][]Bet {
-	var batches [][]Bet
-	for i := 0; i < len(bets); i += batchSize {
-		end := i + batchSize
-		if end > len(bets) {
-			end = len(bets)
-		}
-		batches = append(batches, bets[i:end])
-	}
-	return batches
 }

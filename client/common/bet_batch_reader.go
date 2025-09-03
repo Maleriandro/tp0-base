@@ -34,21 +34,28 @@ func NewBetBatchReader(agencyID uint32, batchSize int) (*BetBatchReader, error) 
 // NextBatch devuelve el próximo batch de apuestas
 func (b *BetBatchReader) NextBatch() ([]Bet, error) {
 	if b.closed {
-		return nil, fmt.Errorf("file already closed")
+		// Si ya fue cerrado, devolvemos slice vacío y sin error
+		return []Bet{}, nil
 	}
-	// El tercer parametro indica el tamaño inicial del slice antes de que go tenga que alocar más espacio
 	bets := make([]Bet, 0, b.batchSize)
 
 	for len(bets) < b.batchSize {
 		record, err := b.reader.Read()
 		if err != nil {
 			b.Close() // Cierra el archivo si termina o hay error
-			if len(bets) > 0 {
-				return bets, nil // Devuelve lo que queda junto con el error
+			// Si es EOF, devolvemos slice vacío y sin error
+			if err == os.ErrClosed || err.Error() == "EOF" {
+				return []Bet{}, nil
 			}
-			return nil, err // Fin de archivo o error
+			// Si ya hay apuestas leídas, devolvemos esas sin error
+			if len(bets) > 0 {
+				return bets, nil
+			}
+			// Solo devolvemos error si es irrecuperable
+			return nil, err
 		}
 		if len(record) < 5 {
+			fmt.Printf("Warning: invalid data in record: %v (expected 5 fields, got %d)\n", record, len(record))
 			continue
 		}
 		document_int, errDoc := strconv.Atoi(record[2])
