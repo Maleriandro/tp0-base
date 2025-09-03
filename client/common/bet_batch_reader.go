@@ -43,12 +43,8 @@ func (b *BetBatchReader) NextBatch() ([]Bet, error) {
 		record, err := b.reader.Read()
 		if err != nil {
 			b.Close() // Cierra el archivo si termina o hay error
-			// Si es EOF, devolvemos slice vacío y sin error
+			// Si es EOF, devolvemos los bets que hayamos leído, y no devuelvo error
 			if err == os.ErrClosed || err.Error() == "EOF" {
-				return []Bet{}, nil
-			}
-			// Si ya hay apuestas leídas, devolvemos esas sin error
-			if len(bets) > 0 {
 				return bets, nil
 			}
 			// Solo devolvemos error si es irrecuperable
