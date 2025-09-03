@@ -72,6 +72,25 @@ client1 exited with code 0
 ```
 
 
+## Como ejecutar los ejercicios
+Para ejecutar los ejercicios, se tiene que primero mover a la rama especifica de cada ejercicio. Esto se puede hacer con el comando:
+
+```bash
+git checkout ejN
+```
+Siendo `N` el número del ejercicio que se desea ejecutar.
+Primero se debe ejecutar el programa de bash `generar-compose.sh`, pasandole como parametro el nombre del archivo de salida (preferentemente `docker-compose-dev.yaml`, que es el usado por los comandos make), y la cantidad de clientes a ejecutar.
+Por ejemplo:
+```bash
+./generar-compose.sh docker-compose-dev.yaml 5
+```
+
+Una vez hecho esto puede levantar todos los contenedores con el comando `make docker-compose-up`. Si desea ver el resultado de los logs de los contenedores puede ejecutar: `make docker-compose-logs`. Y finalmente para cerrar los contenedores: `make docker-compose-down`.
+
+Para ciertos de los ejercicios es necesario descomprimir el archivo `dataset.zip` encontrado en la carpeta `.data`. Estas van a ser todas las apuestas que va a enviar cada cliente. Si desea que un cliente termine en menor tiempo, puede reducir la cantidad de apuestas que envía, eliminando lineas del respectivo archivo del cliente.
+
+Finalmente, como alternativa, puede descargar el [repositorio de test](https://github.com/7574-sistemas-distribuidos/tp0-tests), y seguir las instrucciones allí para ejecutar tests para cada uno de los ejercicios.
+
 ## Parte 1: Introducción a Docker
 En esta primera parte del trabajo práctico se plantean una serie de ejercicios que sirven para introducir las herramientas básicas de Docker que se utilizarán a lo largo de la materia. El entendimiento de las mismas será crucial para el desarrollo de los próximos TPs.
 
