@@ -59,7 +59,7 @@ func (c *Client) StartClientLoop() error {
 
 	defer c.StopClient()
 
-	bets, err := ReadBetsOfAgency(c.config.ID)
+	reader, err := NewBetBatchReader(c.config.ID, c.config.MaxBetsPerBatch)
 	if err != nil {
 		log.Errorf("action: leer_apuestas | result: fail | client_id: %v | error: %v",
 			c.config.ID,
@@ -67,6 +67,7 @@ func (c *Client) StartClientLoop() error {
 		)
 		return err
 	}
+	defer reader.Close()
 
 	err = c.createClientCommunication()
 	if err != nil {
@@ -77,18 +78,29 @@ func (c *Client) StartClientLoop() error {
 		return err
 	}
 
-	batches := divideBetsInBatches(bets, c.config.MaxBetsPerBatch)
-
 	bets_made := 0
 
-	for msgID := 1; msgID <= c.config.LoopAmount && msgID <= len(batches); msgID++ {
+	for {
 		if c.stopped {
 			log.Infof("action: loop_finished | result: stopped | client_id: %v", c.config.ID)
 			return nil
 		}
 
-		err := c.MakeBetBatch(batches[msgID-1])
+		batch, err := reader.NextBatch()
+		if err != nil {
+			// Si el error es otro, printear el error y retornar.
+			log.Errorf("action: leer_apuestas | result: fail | client_id: %v | error: %v",
+				c.config.ID,
+				err,
+			)
+			return err
+		}
+		if len(batch) == 0 {
+			// Si el batch es vacío, quiere decir que no hay más bets
+			break
+		}
 
+		err = c.MakeBetBatch(batch)
 		if err != nil {
 			log.Errorf("action: loop_finished | result: fail | client_id: %v | error: %v",
 				c.config.ID,
@@ -97,7 +109,7 @@ func (c *Client) StartClientLoop() error {
 			return err
 		}
 
-		bets_made += len(batches[msgID-1])
+		bets_made += len(batch)
 		log.Infof("action: apuesta_enviada | result: in_progress | cantidad_acumulada: %v", bets_made)
 
 		// Wait a time between sending one message and the next one
@@ -183,16 +195,4 @@ func (c *Client) StopClient() {
 		c.comm = nil
 	}
 
-}
-
-func divideBetsInBatches(bets []Bet, batchSize int) [][]Bet {
-	var batches [][]Bet
-	for i := 0; i < len(bets); i += batchSize {
-		end := i + batchSize
-		if end > len(bets) {
-			end = len(bets)
-		}
-		batches = append(batches, bets[i:end])
-	}
-	return batches
 }

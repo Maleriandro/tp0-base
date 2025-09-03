@@ -225,8 +225,7 @@ Por su parte, el servidor deberá responder con éxito solamente si todas las ap
 >
 > Para agregar la data de apuestas, se agrega un nuevo punto de montaje en el script que genera los compose, tomando el argency-{id}.csv correspondiente, y montandolo en la raiz.
 >
-> Para leer las apuestas, como los archivos no son demasiado grandes, decidí leerlos todo de una unica vez, e inmediatamente dividirlo en los batches para que el loop principal pueda consumir un batch a la vez.
-> Si se supiera que los archivos fueran más grandes, se podría implementar una lógica de lectura más eficiente, como leer de a un batch, esperando a enviar tal batch antes de leer el siguiente del archivo.
+> Para leer las apuestas, implementé un struct `BetBatchReader`. Este struct abre el archivo CSV y permite leerlo de a batches, procesando y enviando cada lote de apuestas a medida que se lee. El archivo se cierra automáticamente al finalizar la lectura. Así, el cliente nunca tiene todas las apuestas en memoria, sino solo el batch actual.
 >
 > En el modulo de comunicacion, agregue la opcion de conectar y desconectrse del servidor, usado para conectarse antes de enviar cada batch, y desconectarse al recibir la confirmación de éxito.
 >
