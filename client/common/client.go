@@ -125,8 +125,6 @@ func (c *Client) StartClientLoop() error {
 		return err
 	}
 
-	c.comm.Close()
-
 	log.Infof("action: apuesta_enviada | result: success | cantidad_total: %v", bets_made)
 
 	result, err := c.comm.GetLotteryResult(c.config.ID)
