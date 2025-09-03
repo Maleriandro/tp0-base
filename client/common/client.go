@@ -100,8 +100,6 @@ func (c *Client) StartClientLoop() error {
 			break
 		}
 
-		c.comm.startConnection()
-
 		err = c.MakeBetBatch(batch)
 		if err != nil {
 			log.Errorf("action: loop_finished | result: fail | client_id: %v | error: %v",
@@ -110,8 +108,6 @@ func (c *Client) StartClientLoop() error {
 			)
 			return err
 		}
-
-		c.comm.stopConnection()
 
 		bets_made += len(batch)
 		log.Infof("action: apuesta_enviada | result: in_progress | cantidad_acumulada: %v", bets_made)
