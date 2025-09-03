@@ -39,7 +39,7 @@ class ClientHandler(threading.Thread):
             if mensaje.tipo_mensaje == MessageType.ENVIO_BATCH:
                 mantener_conexion = self.procesar_envio_batch(mensaje)
             elif mensaje.tipo_mensaje == MessageType.SOLICITUD_GANADORES:
-                mantener_conexion = self.server._procesar_solicitud_ganadores(mensaje)
+                mantener_conexion = self.procesar_solicitud_ganadores(mensaje)
             else:
                 logging.error(f"thread: {self.name} | action: mensaje_no_reconocido | result: fail | tipo: {mensaje.tipo_mensaje}")
                 mantener_conexion = False
