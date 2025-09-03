@@ -22,9 +22,7 @@ class Communication:
         batch_size = self.__read_one_byte()
         return agency, batch_size
 
-    def __recieve_single_bet(self, agency) -> Bet:
-        _len_bet_actual = self.__read_one_byte()
-        
+    def __recieve_single_bet(self, agency) -> Bet:        
         nombre = self.__read_null_terminated_string()
         apellido = self.__read_null_terminated_string()
         documento = self.__read_uint32()
