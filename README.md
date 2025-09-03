@@ -329,6 +329,16 @@ En este ejercicio es importante considerar los mecanismos de sincronización a u
 
 Modificar el servidor para que permita aceptar conexiones y procesar mensajes en paralelo. En caso de que el alumno implemente el servidor en Python utilizando _multithreading_,  deberán tenerse en cuenta las [limitaciones propias del lenguaje](https://wiki.python.org/moin/GlobalInterpreterLock).
 
+> #### Resolución:
+> Una vez que en el servidor tenemos concurrencia para aceptar conexiones, ya no requerimos que los clientes se desconecten para permitir atender a nuevos clientes.
+> Por eso, el protocolo nuevamente se modifica. En este caso, ya no se requiere que los clientes se desconecten una vez que han enviado todas sus apuestas. Simplemente pueden pedir inmediatamente el resultado del sorteo, aunque probablemente todavía no se encuentre disponible.
+>
+> Para implementar concurrencia con las conexiones, decidí utilizar multithreading. Si bien en python, la herramienta de multithreading no permite paralelismo real (a razon del GIL), como la tarea de responder las solicitudes de los clientes no es CPU intensiva, esto no representa un problema significativo.
+>
+> Para hacerlo, lo que hice fue mover toda la logica de comunicarme con un cliente a una clase separada: `ClientHandler`, que a su vez hereda de `threading.Thread`.
+> Cuando se crea este cliente, se le asigna un socket y se inicia un nuevo hilo para manejar la comunicación con ese cliente.
+> Todas las operaciones que puede hacer sin interferir con el estado general del servidor, las hace por si solas. Pero cada vez que necesita acceder a recursos compartidos, como almacenar las apuestas, debe llamar a una funcion de servidor, que se encarga de hacer el guardado de manera segura, utilizando Locks para prevenir que multiples hilos accedan a la misma informacion al mismo tiempo.
+
 ## Condiciones de Entrega
 Se espera que los alumnos realicen un _fork_ del presente repositorio para el desarrollo de los ejercicios y que aprovechen el esqueleto provisto tanto (o tan poco) como consideren necesario.
 
