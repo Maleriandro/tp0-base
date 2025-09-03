@@ -17,6 +17,15 @@ class InvalidServerMessage(Exception):
     """Raised when the server receives a message it should not receive."""
     pass
 
+class ConexionCerradaPorCliente(Exception):
+    """Elevada cuando el cliente se desconecta correctamente."""
+    pass
+
+class EOFError(Exception):
+    """Elevada cuando se alcanza el final del archivo."""
+    pass
+
+
 class MessageType(IntEnum):
     ENVIO_BATCH = 1
     CONFIRMACION_RECEPCION = 2
@@ -86,9 +95,13 @@ class Communication:
     def __init__(self, socket):
         self.__socket = socket
         
-    def leer_mensaje_socket(self):
+    def leer_mensaje_socket(self) -> Message:
         self.__ensure_socket()
-        tipo_mensaje = self.__read_one_byte()
+        try:
+            tipo_mensaje = self.__read_one_byte()
+        except EOFError:
+            raise ConexionCerradaPorCliente("Connection closed by the client")
+
         if tipo_mensaje == MessageType.ENVIO_BATCH:
             return self._leer_mensaje_envio_batch()
         elif tipo_mensaje == MessageType.SOLICITUD_GANADORES:
@@ -191,6 +204,9 @@ class Communication:
         while len(data) < n:
             packet = self.__socket.recv(n - len(data))
             if not packet:
+                if len(data) == 0:
+                    raise EOFError("Connection closed by the client")
+                
                 raise ValueError("Failed to read all bytes")
             data.extend(packet)
         return data

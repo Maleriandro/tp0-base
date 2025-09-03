@@ -2,14 +2,16 @@ from socket import socket
 import threading
 import logging
 
-from common.communication import Communication, EnvioBatchMessage, MessageType, SolicitudGanadoresMessage
-from common.server import Server
+from common.communication import Communication, ConexionCerradaPorCliente, EnvioBatchMessage, MessageType, SolicitudGanadoresMessage
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from common.server import Server
 
 class ClientHandler(threading.Thread):
-    def __init__(self, client_socket: socket, server: Server):
+    def __init__(self, client_socket: socket, server: "Server"):
         super().__init__()
         self.communication: Communication = Communication(client_socket)
-        self.server: Server = server
+        self.server: "Server" = server
         self.stopped: bool = False
 
     def run(self):
@@ -31,23 +33,23 @@ class ClientHandler(threading.Thread):
             pass
 
     def recibir_mensajes(self):
-        mantener_conexion = True
-        
-        while mantener_conexion and not self.stopped:
-            mensaje = self.communication.leer_mensaje_socket()
-            
+        while not self.stopped:
+            try:
+                mensaje = self.communication.leer_mensaje_socket()
+            except ConexionCerradaPorCliente:
+                logging.info(f"thread: {self.name} | action: conexion_cerrada | result: success")
+                self.stopped = True
+                break
+                
             if mensaje.tipo_mensaje == MessageType.ENVIO_BATCH:
-                mantener_conexion = self.procesar_envio_batch(mensaje)
+                self.procesar_envio_batch(mensaje)
             elif mensaje.tipo_mensaje == MessageType.SOLICITUD_GANADORES:
-                mantener_conexion = self.procesar_solicitud_ganadores(mensaje)
-            else:
-                logging.error(f"thread: {self.name} | action: mensaje_no_reconocido | result: fail | tipo: {mensaje.tipo_mensaje}")
-                mantener_conexion = False
+                self.procesar_solicitud_ganadores(mensaje)
 
 
     def procesar_envio_batch(self, mensaje: EnvioBatchMessage) -> bool:
-        # Si ya completó envio, no debería enviarme más apuestas
-        if (self.server.agencia_completo_envio(mensaje.id_agencia)):
+        # Si ya completó envio, o el servidor ya hizo el sorteo, no debería enviarme más apuestas
+        if (self.server.agencia_completo_envio(mensaje.id_agencia) or self.server.sorteo_fue_realizado()):
             self.communication.send_confirmacion_recepcion_error()
             return False
 

@@ -1,12 +1,16 @@
+import threading            
+            
 import socket
 import logging
 import signal
 from common.client_handler import ClientHandler
-from typing import Dict, List
+from typing import Callable, Dict, List
 
 from common.communication import Communication, EnvioBatchMessage, Message, MessageType, SolicitudGanadoresMessage
 from common.utils import has_won, load_bets, store_bets, Bet
 import traceback
+import copy
+from typing import Generic, TypeVar
 
 class Server:
     def __init__(self, port, listen_backlog, client_amount):
@@ -19,11 +23,12 @@ class Server:
 
         self._client_handlers: List[ClientHandler] = []  # lista de ClientHandler activos
 
-        self._agencias_totales = client_amount
-        self._agencias_que_completaron_envio = set()
+        self._lock_store_bets = threading.Lock()
 
-        self._sorteo_realizado = False
-        self._dnis_ganadores_por_agencia: Dict[int, List[int]] = dict()
+        self._agencias_totales = client_amount
+        self._agencias_que_completaron_envio: ThreadSafeValue[set[int]] = ThreadSafeValue(set())
+        self._sorteo_realizado: ThreadSafeValue[bool] = ThreadSafeValue(False)
+        self._dnis_ganadores_por_agencia: ThreadSafeValue[Dict[int, list[int]]] = ThreadSafeValue(dict())  
 
         signal.signal(signal.SIGTERM, self.__stop_server)
 
@@ -61,15 +66,11 @@ class Server:
                 handler.start()
                 self._client_handlers.append(handler)
 
-                # Limpiar handlers terminados
-                for h in self._client_handlers:
-                    if not h.is_alive():
-                        h.join()
-                self._client_handlers = [h for h in self._client_handlers if h.is_alive()]
+                self.__limpiar_client_handlers_terminados()
 
                 if self.__se_debe_realizar_sorteo():
                     self._realizar_sorteo()
-                    self._sorteo_realizado = True
+                    self._sorteo_realizado.set(True)
 
             except OSError:
                 break
@@ -80,11 +81,18 @@ class Server:
         logging.info("action: stop_server | result: success")
 
 
+    def __limpiar_client_handlers_terminados(self):
+        for h in self._client_handlers:
+            if not h.is_alive():
+                h.join()
+        self._client_handlers = [h for h in self._client_handlers if h.is_alive()]
+
     def __se_debe_realizar_sorteo(self) -> bool:
-        return (not self._sorteo_realizado and len(self._agencias_que_completaron_envio) == self._agencias_totales)
-            
+        return (not self._sorteo_realizado.get() and len(self._agencias_que_completaron_envio.get()) == self._agencias_totales)
             
     def _realizar_sorteo(self):
+        # No necesito hacer load bets thread safe, porque esta funcion se llama unicamente cuando ya todos los clientes enviaron sus apuestas.
+        # Y ningun ClientHandler va a poder almacenar niguna apuesta extra, por lo que no es necesario protegerlo.
         bets: List[Bet] = load_bets()
         bets_ganadores = filter(has_won, bets)
         
@@ -114,21 +122,39 @@ class Server:
 
     
     def agencia_completo_envio(self, agencia: int) -> bool:
-        # TODO: hacer thread safe
-        return agencia in self._agencias_que_completaron_envio
+        agencias_que_completaron_envio_value = self._agencias_que_completaron_envio.get()
+        return agencia in agencias_que_completaron_envio_value
     
     def marcar_agencia_completada(self, agencia: int):
-        # TODO: hacer thread safe
-        self._agencias_que_completaron_envio.add(agencia)
+        self._agencias_que_completaron_envio.update(lambda s: s.union({agencia}))
 
     def almacenar_bets(self, bets: List[Bet]):
-        # TODO: hacer thread safe
-        store_bets(bets)
-        
-    def sorteo_fue_realizado(self):
-        # Todo: hacer thread safe?
-        return self._sorteo_realizado
+        # Varios threads podrían intentar llamar store_bets al mismo tiempo, así que lo protejo.
+        with self._lock_store_bets:
+            store_bets(bets)
+
+    def sorteo_fue_realizado(self) -> bool:
+        return self._sorteo_realizado.get()
 
     def obtener_ganadores_de_agencia(self, agencia: int) -> List[int]:
-        # TODO: hacer thread safe
-        return self._dnis_ganadores_por_agencia.get(agencia, [])
+        dnis_ganadores_por_agencia = self._dnis_ganadores_por_agencia.get()
+        return dnis_ganadores_por_agencia.get(agencia, [])
+
+
+# Clase genérica para encapsular un valor y su lock
+T = TypeVar('T')
+
+# Clase para proteger valores con locks, y que no acceda accidentalmente al valor de manera no protegida
+class ThreadSafeValue(Generic[T]):
+    def __init__(self, value: T):
+        self._value: T = value
+        self._lock = threading.Lock()
+    def get(self) -> T:
+        with self._lock:
+            return copy.deepcopy(self._value)
+    def set(self, value: T):
+        with self._lock:
+            self._value = value
+    def update(self, func: 'Callable[[T], T]'):
+        with self._lock:
+            self._value = func(self._value)
