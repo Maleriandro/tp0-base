@@ -130,7 +130,7 @@ class Server:
             logging.info(f'action: accept_connections | result: success | ip: {addr[0]}')
             return sock
         except socket.timeout:
-            logging.debug('action: accept_connections | result: timeout | message: no_connection_attempts')
+            logging.debug('action: accept_connections | result: success | message: timeout, no new connections')
             return None
 
 
