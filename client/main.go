@@ -122,7 +122,6 @@ func main() {
 		sig := <-sigs
 		log.Infof("action: shutdown | result: in_progress | signal: %v", sig)
 		client.StopClient()
-		os.Exit(0)
 	}()
 
 	client.StartClientLoop()
