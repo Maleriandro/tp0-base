@@ -2,6 +2,7 @@ package common
 
 import (
 	"errors"
+	"io"
 	"time"
 
 	"github.com/op/go-logging"
@@ -59,7 +60,7 @@ func (c *Client) StartClientLoop() error {
 
 	defer c.StopClient()
 
-	bets, err := ReadBetsOfAgency(c.config.ID)
+	reader, err := NewBetBatchReader(c.config.ID, c.config.MaxBetsPerBatch)
 	if err != nil {
 		log.Errorf("action: leer_apuestas | result: fail | client_id: %v | error: %v",
 			c.config.ID,
@@ -67,6 +68,7 @@ func (c *Client) StartClientLoop() error {
 		)
 		return err
 	}
+	defer reader.Close()
 
 	err = c.createClientCommunication()
 	if err != nil {
@@ -77,20 +79,34 @@ func (c *Client) StartClientLoop() error {
 		return err
 	}
 
-	batches := divideBetsInBatches(bets, c.config.MaxBetsPerBatch)
-
 	bets_made := 0
 
-	for msgID := 1; msgID <= c.config.LoopAmount && msgID <= len(batches); msgID++ {
+	for msgID := 1; msgID <= c.config.LoopAmount; msgID++ {
 		if c.stopped {
 			log.Infof("action: loop_finished | result: stopped | client_id: %v", c.config.ID)
 			return nil
 		}
 
+		batch, err := reader.NextBatch()
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				// Si es EOF, terminar el loop
+				break
+			}
+			// Si el error es otro, printear el error y retornar.
+			log.Errorf("action: leer_apuestas | result: fail | client_id: %v | error: %v",
+				c.config.ID,
+				err,
+			)
+			return err
+		}
+		if len(batch) == 0 {
+			break
+		}
+
 		c.comm.startConnection()
 
-		err := c.MakeBetBatch(batches[msgID-1])
-
+		err = c.MakeBetBatch(batch)
 		if err != nil {
 			log.Errorf("action: loop_finished | result: fail | client_id: %v | error: %v",
 				c.config.ID,
@@ -101,7 +117,7 @@ func (c *Client) StartClientLoop() error {
 
 		c.comm.stopConnection()
 
-		bets_made += len(batches[msgID-1])
+		bets_made += len(batch)
 		log.Infof("action: apuesta_enviada | result: in_progress | cantidad_acumulada: %v", bets_made)
 
 		// Wait a time between sending one message and the next one
