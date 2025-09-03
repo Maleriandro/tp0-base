@@ -4,7 +4,7 @@ import socket
 import logging
 import signal
 from common.client_handler import ClientHandler
-from typing import Callable, Dict, List
+from typing import Callable, Dict, List, Optional
 
 from common.communication import Communication, EnvioBatchMessage, Message, MessageType, SolicitudGanadoresMessage
 from common.utils import has_won, load_bets, store_bets, Bet
@@ -18,6 +18,11 @@ class Server:
         self._server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._server_socket.bind(('', port))
         self._server_socket.listen(listen_backlog)
+        
+        # Si pasa demasiado tiempo sin nuevas conexiones, tira un timeout,
+        # para poder realizar otras tareas en el main loop.
+        self._server_socket.settimeout(1)
+
         self._current_client_communication = None
         self._stopped = False
 
@@ -62,15 +67,19 @@ class Server:
         while not self._stopped:
             try:
                 client_socket = self.__accept_new_connection()
-                handler = ClientHandler(client_socket, self)
-                handler.start()
-                self._client_handlers.append(handler)
+                
+                if client_socket is not None:
+                    handler = ClientHandler(client_socket, self)
+                    handler.start()
+                    self._client_handlers.append(handler)
 
                 self.__limpiar_client_handlers_terminados()
 
                 if self.__se_debe_realizar_sorteo():
+                    logging.info("action: realizar_sorteo | result: in_progress")
                     self._realizar_sorteo()
                     self._sorteo_realizado.set(True)
+                    logging.info("action: realizar_sorteo | result: success")
 
             except OSError:
                 break
@@ -95,29 +104,34 @@ class Server:
         # Y ningun ClientHandler va a poder almacenar niguna apuesta extra, por lo que no es necesario protegerlo.
         bets: List[Bet] = load_bets()
         bets_ganadores = filter(has_won, bets)
+
+        dnis_ganadores_por_agencia: Dict[int, List[int]] = dict()
         
         for bet in bets_ganadores:
             agencia = bet.agency
             dni = bet.document
 
-            if agencia not in self._dnis_ganadores_por_agencia:
-                self._dnis_ganadores_por_agencia[agencia] = []
-            self._dnis_ganadores_por_agencia[agencia].append(int(dni))
+            if agencia not in dnis_ganadores_por_agencia:
+                dnis_ganadores_por_agencia[agencia] = []
+            dnis_ganadores_por_agencia[agencia].append(int(dni))
 
-    def __accept_new_connection(self) -> socket:
+        self._dnis_ganadores_por_agencia.set(dnis_ganadores_por_agencia)
+
+    def __accept_new_connection(self) -> Optional[socket.socket]:
         """
         Accept new connections
 
-        Function blocks until a connection to a client is made.
-        Then connection created is printed and returned
+        Function blocks until a connection to a client is made or timeout.
+        If no connection is made, returns None.
         """
-
-        # Connection arrived
-        logging.info('action: accept_connections | result: in_progress')
-        socket, addr = self._server_socket.accept()
-        logging.info(f'action: accept_connections | result: success | ip: {addr[0]}')
-
-        return socket
+        try:
+            logging.info('action: accept_connections | result: in_progress')
+            sock, addr = self._server_socket.accept()
+            logging.info(f'action: accept_connections | result: success | ip: {addr[0]}')
+            return sock
+        except socket.timeout:
+            logging.debug('action: accept_connections | result: timeout | message: no_connection_attempts')
+            return None
 
 
     
