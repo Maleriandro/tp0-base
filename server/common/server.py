@@ -1,11 +1,16 @@
+import threading            
+            
 import socket
 import logging
 import signal
-from typing import Dict, List
+from common.client_handler import ClientHandler
+from typing import Callable, Dict, List, Optional
 
 from common.communication import Communication, EnvioBatchMessage, Message, MessageType, SolicitudGanadoresMessage
 from common.utils import has_won, load_bets, store_bets, Bet
 import traceback
+import copy
+from typing import Generic, TypeVar
 
 class Server:
     def __init__(self, port, listen_backlog, client_amount):
@@ -13,14 +18,22 @@ class Server:
         self._server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._server_socket.bind(('', port))
         self._server_socket.listen(listen_backlog)
+        
+        # Si pasa demasiado tiempo sin nuevas conexiones, tira un timeout,
+        # para poder realizar otras tareas en el main loop.
+        self._server_socket.settimeout(1)
+
         self._current_client_communication = None
         self._stopped = False
-        
-        self._agencias_totales = client_amount
-        self._agencias_que_completaron_envio = set()
 
-        self._sorteo_realizado = False
-        self._dnis_ganadores_por_agencia: Dict[int, List[int]] = dict()
+        self._client_handlers: List[ClientHandler] = []  # lista de ClientHandler activos
+
+        self._lock_store_bets = threading.Lock()
+
+        self._agencias_totales = client_amount
+        self._agencias_que_completaron_envio: ThreadSafeValue[set[int]] = ThreadSafeValue(set())
+        self._sorteo_realizado: ThreadSafeValue[bool] = ThreadSafeValue(False)
+        self._dnis_ganadores_por_agencia: ThreadSafeValue[Dict[int, list[int]]] = ThreadSafeValue(dict())  
 
         signal.signal(signal.SIGTERM, self.__stop_server)
 
@@ -37,136 +50,125 @@ class Server:
         self._server_socket = None
         logging.debug("action: stop_server_socket | result: success")
 
-        # Cerrar socket cliente
-        logging.debug("action: stop_client_socket | result: in_progress")
-        if self._current_client_communication:
-            self._current_client_communication.close()
-        self._current_client_communication = None
-        logging.debug("action: stop_client_socket | result: success")
+        # Parar y joinear todos los handlers de clientes
+        logging.debug("action: stop_client_handlers | result: in_progress")
+        for handler in self._client_handlers:
+            handler.stop()
+        for handler in self._client_handlers:
+            handler.join()
+        self._client_handlers.clear()
+        logging.debug("action: stop_client_handlers | result: success")
 
     def run(self):
         """
-        Dummy Server loop
-
-        Server that accept a new connections and establishes a
-        communication with a client. After client with communucation
-        finishes, servers starts to accept new connections again
+        Server loop con multithreading: cada conexión se atiende en un thread.
+        El thread principal guarda los handlers de clientes para cierre ordenado.
         """
-
-
         while not self._stopped:
             try:
-                self._current_client_communication = self.__accept_new_connection()
-                self.__handle_client_connection()
+                client_socket = self.__accept_new_connection()
                 
+                if client_socket is not None:
+                    handler = ClientHandler(client_socket, self)
+                    handler.start()
+                    self._client_handlers.append(handler)
+
+                self.__limpiar_client_handlers_terminados()
+
                 if self.__se_debe_realizar_sorteo():
+                    logging.info("action: realizar_sorteo | result: in_progress")
                     self._realizar_sorteo()
-                    self._sorteo_realizado = True
+                    self._sorteo_realizado.set(True)
+                    logging.info("action: realizar_sorteo | result: success")
 
             except OSError:
                 break
 
+        # Al salir, join a todos los handlers restantes
+        for handler in self._client_handlers:
+            handler.join()
         logging.info("action: stop_server | result: success")
 
 
+    def __limpiar_client_handlers_terminados(self):
+        for h in self._client_handlers:
+            if not h.is_alive():
+                h.join()
+        self._client_handlers = [h for h in self._client_handlers if h.is_alive()]
+
     def __se_debe_realizar_sorteo(self) -> bool:
-        return (not self._sorteo_realizado and len(self._agencias_que_completaron_envio) == self._agencias_totales)
-            
+        return (not self._sorteo_realizado.get() and len(self._agencias_que_completaron_envio.get()) == self._agencias_totales)
             
     def _realizar_sorteo(self):
+        # No necesito hacer load bets thread safe, porque esta funcion se llama unicamente cuando ya todos los clientes enviaron sus apuestas.
+        # Y ningun ClientHandler va a poder almacenar niguna apuesta extra, por lo que no es necesario protegerlo.
         bets: List[Bet] = load_bets()
         bets_ganadores = filter(has_won, bets)
+
+        dnis_ganadores_por_agencia: Dict[int, List[int]] = dict()
         
         for bet in bets_ganadores:
             agencia = bet.agency
             dni = bet.document
 
-            if agencia not in self._dnis_ganadores_por_agencia:
-                self._dnis_ganadores_por_agencia[agencia] = []
-            self._dnis_ganadores_por_agencia[agencia].append(int(dni))
+            if agencia not in dnis_ganadores_por_agencia:
+                dnis_ganadores_por_agencia[agencia] = []
+            dnis_ganadores_por_agencia[agencia].append(int(dni))
 
-    def __handle_client_connection(self):
-        """
-        Read message from a specific client socket and closes the socket
+        self._dnis_ganadores_por_agencia.set(dnis_ganadores_por_agencia)
 
-        If a problem arises in the communication with the client, the
-        client socket will also be closed
-        """
-        try:
-            logging.info(f"action: esperando_recibir_mensaje | result: in_progress")
-            self.recibir_mensajes()
-            
-        except Exception as e:
-            logging.error(f"action: apuesta_recibida | result: fail | cantidad: 0 | error: {e} | file: {traceback.extract_tb(e.__traceback__)[-1].filename} | line: {traceback.extract_tb(e.__traceback__)[-1].lineno}")
-            self._current_client_communication.send_confirmacion_recepcion_error(self, error=1)()
-        finally:
-            if self._current_client_communication:
-                self._current_client_communication.close()
-            self._current_client_communication = None
-
-    def __accept_new_connection(self):
+    def __accept_new_connection(self) -> Optional[socket.socket]:
         """
         Accept new connections
 
-        Function blocks until a connection to a client is made.
-        Then connection created is printed and returned
+        Function blocks until a connection to a client is made or timeout.
+        If no connection is made, returns None.
         """
+        try:
+            logging.info('action: accept_connections | result: in_progress')
+            sock, addr = self._server_socket.accept()
+            logging.info(f'action: accept_connections | result: success | ip: {addr[0]}')
+            return sock
+        except socket.timeout:
+            logging.debug('action: accept_connections | result: success | message: timeout, no new connections')
+            return None
 
-        # Connection arrived
-        logging.info('action: accept_connections | result: in_progress')
-        c, addr = self._server_socket.accept()
-        logging.info(f'action: accept_connections | result: success | ip: {addr[0]}')
 
-        client_communication = Communication(c)
-        return client_communication
-
-
-    # Devuelve true si la conexion debe ser mantenida, false si debe ser cerrada.
-    def _procesar_envio_batch(self, mensaje: EnvioBatchMessage) -> bool:
-        # Si ya completó envio, no debería enviarme más apuestas
-        if (mensaje.id_agencia in self._agencias_que_completaron_envio):
-            self._current_client_communication.send_confirmacion_recepcion_error(self, error=1)()
-            return False
-
-        # Si recibo 0 bets, quiere decir que ya no envian más apuestas
-        if mensaje.numero_apuestas == 0:
-            self._agencias_que_completaron_envio.add(mensaje.id_agencia)
-            self._current_client_communication.send_confirmacion_recepcion_ok()
-            return False
-        
-        apuestas = mensaje.apuestas
-        
-        logging.info(f"action: apuesta_recibida | result: success | cantidad: {mensaje.numero_apuestas}")
-        store_bets(apuestas)
-        
-        self._current_client_communication.send_confirmacion_recepcion_ok()
-        return True
     
+    def agencia_completo_envio(self, agencia: int) -> bool:
+        agencias_que_completaron_envio_value = self._agencias_que_completaron_envio.get()
+        return agencia in agencias_que_completaron_envio_value
+    
+    def marcar_agencia_completada(self, agencia: int):
+        self._agencias_que_completaron_envio.update(lambda s: s.union({agencia}))
 
-    # Devuelve true si la conexion debe ser mantenida, false si debe ser cerrada.
-    def _procesar_solicitud_ganadores(self, mensaje: SolicitudGanadoresMessage) -> bool:
-        if not self._sorteo_realizado:
-            self._current_client_communication.send_sorteo_no_realizado()
-            return False
+    def almacenar_bets(self, bets: List[Bet]):
+        # Varios threads podrían intentar llamar store_bets al mismo tiempo, así que lo protejo.
+        with self._lock_store_bets:
+            store_bets(bets)
 
-        agencia = mensaje.id_agencia
-        dnis_ganadores = self._dnis_ganadores_por_agencia.get(agencia, [])
-        
-        self._current_client_communication.send_ganadores_sorteo(dnis_ganadores)
-        return False
+    def sorteo_fue_realizado(self) -> bool:
+        return self._sorteo_realizado.get()
+
+    def obtener_ganadores_de_agencia(self, agencia: int) -> List[int]:
+        dnis_ganadores_por_agencia = self._dnis_ganadores_por_agencia.get()
+        return dnis_ganadores_por_agencia.get(agencia, [])
 
 
-    def recibir_mensajes(self):        
-        mantener_conexion = True
+# Clase genérica para encapsular un valor y su lock
+T = TypeVar('T')
 
-        while mantener_conexion and not self._stopped:
-            mensaje = self._current_client_communication.leer_mensaje_socket()
-
-            if mensaje.tipo_mensaje == MessageType.ENVIO_BATCH:
-                mantener_conexion = self._procesar_envio_batch(mensaje)
-            elif mensaje.tipo_mensaje == MessageType.SOLICITUD_GANADORES:
-                mantener_conexion = self._procesar_solicitud_ganadores(mensaje)
-            else:
-                logging.error(f"action: mensaje_no_reconocido | result: fail | tipo: {mensaje.tipo_mensaje}")
-                mantener_conexion = False
-                
+# Clase para proteger valores con locks, y que no acceda accidentalmente al valor de manera no protegida
+class ThreadSafeValue(Generic[T]):
+    def __init__(self, value: T):
+        self._value: T = value
+        self._lock = threading.Lock()
+    def get(self) -> T:
+        with self._lock:
+            return copy.deepcopy(self._value)
+    def set(self, value: T):
+        with self._lock:
+            self._value = value
+    def update(self, func: 'Callable[[T], T]'):
+        with self._lock:
+            self._value = func(self._value)

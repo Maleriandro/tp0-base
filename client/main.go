@@ -124,8 +124,6 @@ func main() {
 		time.Sleep(1 * time.Second)
 		log.Infof("action: exit | result: success | signal: %v", sig)
 		client.StopClient()
-
-		os.Exit(0)
 	}()
 
 	err = client.StartClientLoop()

@@ -210,7 +210,6 @@ Por su parte, el servidor deberá responder con éxito solamente si todas las ap
 >| id_agencia (4bytes big-endian)        |
 >| numero de apuestas (1byte)            |  max 99
 >| ------------------------------------- |
->| len apuesta actual (1byte)            |
 >| len nombre (null terminated string)   |  max 30 chars, including null
 >| len apellido (null terminated string) |  max 30 chars, including null
 >| DNI (4bytes big-endian)               |
@@ -218,8 +217,8 @@ Por su parte, el servidor deberá responder con éxito solamente si todas las ap
 >| numero (4bytes big-endian)            |
 >```
 >
->Con este nuevo formato, cada apuesta puede ocupar como máximo 1+30+30+4+11+4 = 80 bytes.
->Por lo que podemos obtener la cantidad máxima de apuestas que se pueden enviar en un único mensaje. 8000 bytes / 80 bytes = 100 apuestas. Para darle espacio al header, hago que el máximo numero de apuestas por mensaje sea 99.
+>Con este nuevo formato, cada apuesta puede ocupar como máximo 30+30+4+11+4 = 79 bytes.
+>Por lo que podemos obtener la cantidad máxima de apuestas que se pueden enviar en un único mensaje. 8000 bytes / 79 bytes ≈ 101 apuestas = 7979 bytes. Por lo que puedo enviar por batch 101 apuestas, ya que me queda suficiente espacio como para mandar el header.
 >
 > Similar al ejercicio anterior, el cliente puede enviar un unico batch de apuestas por cada conexion. Para permitir que otros clientes intercalen sus batches, y evitar que un cliente tenga que esperar demasiado a que otro cliente termine.
 >
@@ -329,6 +328,27 @@ En este ejercicio es importante considerar los mecanismos de sincronización a u
 ### Ejercicio N°8:
 
 Modificar el servidor para que permita aceptar conexiones y procesar mensajes en paralelo. En caso de que el alumno implemente el servidor en Python utilizando _multithreading_,  deberán tenerse en cuenta las [limitaciones propias del lenguaje](https://wiki.python.org/moin/GlobalInterpreterLock).
+
+> #### Resolución:
+> Una vez que en el servidor tenemos concurrencia para aceptar conexiones, ya no requerimos que los clientes se desconecten para permitir atender a nuevos clientes.
+> Por eso, el protocolo nuevamente se modifica. En este caso, ya no se requiere que los clientes se desconecten una vez que han enviado todas sus apuestas. Simplemente pueden pedir inmediatamente el resultado del sorteo, aunque probablemente todavía no se encuentre disponible.
+>
+> Para implementar concurrencia con las conexiones, decidí utilizar multithreading. Si bien en python, la herramienta de multithreading no permite paralelismo real (a razon del GIL), como la tarea de responder las solicitudes de los clientes no es CPU intensiva, esto no representa un problema significativo.
+>
+> Para hacerlo, lo que hice fue mover toda la logica de comunicarme con un cliente a una clase separada: `ClientHandler`, que a su vez hereda de `threading.Thread`.
+> Cuando se crea este cliente, se le asigna un socket y se inicia un nuevo hilo para manejar la comunicación con ese cliente.
+> Todas las operaciones que puede hacer sin interferir con el estado general del servidor, las hace por si solas. Pero cada vez que necesita acceder a recursos compartidos, como almacenar las apuestas, debe llamar a una funcion de servidor, que se encarga de hacer el guardado de manera segura, utilizando Locks para prevenir que multiples hilos accedan a la misma informacion al mismo tiempo.
+>
+> En particular, las operaciones que requieren sincronizacion son:
+> - El almacenamiento de las apuestas. (Una vez todas las apuestas fueron almacenadas, deja de requerir sincronización, ya que unicamente el thread principal del servidor puede leer las apuestas para realizar el sorteo).
+> - El set de agencias que ya terminaron de enviar sus apuestas, ya que tanto el servidor lo lee para verificar si ya se puede realizar el sorteo, como los threads de los clientes lo modifican para indicar que ya terminaron.
+> - El flag que indica si el sorteo ya fue realizado, ya que tanto el servidor lo lee para verificar si puede responder con la lista de ganadores, como los threads de los clientes lo leen para saber si pueden responder con la lista de ganadores.
+> - El diccionario que contiene la lista de ganadores por agencia, ya que tanto el servidor lo escribe una vez que se realiza el sorteo, como los threads de los clientes lo leen para responder con la lista de ganadores.
+>
+> Para el primero, utilicé un `threading.Lock`, separado de la funcion `store_bets()`, ya que la funcion es llamada de un unico lugar, y no se me ocurrio como hacer que la funcion misma se encargue de la sincronizacion sin modificar la funcion.
+> Para los otros 3 cree una clase `ThreadSafeValue`, que encapsula la variable, haciendo que sea imposible acceder a ella a menos que se tome el lock asociado al valor.
+>
+> Por ultimo, modifique el socket que recibe las conexiones. Antes este socket bloqueaba indefinidamente el thread principal del servidor, hasta que un cliente se conectaba. Ahora, este socket tiene un timeout de 1 segundo. Si no se conecta ningun cliente en ese tiempo, el accept lanza una excepcion, que es capturada, y permite que el thread principal del servidor pueda seguir su ejecucion, y verificar si ya se puede realizar el sorteo, además de liberar los `ClientHandler` que ya terminaron su ejecucion.
 
 ## Condiciones de Entrega
 Se espera que los alumnos realicen un _fork_ del presente repositorio para el desarrollo de los ejercicios y que aprovechen el esqueleto provisto tanto (o tan poco) como consideren necesario.

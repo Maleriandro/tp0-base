@@ -170,17 +170,10 @@ func stringToNullEndedBytes(s string, max_size int) []byte {
 }
 
 func (comm *Communication) GetLotteryResult(agencyId uint32) ([]uint32, error) {
-	defer comm.Close()
 
 	var ganadores []uint32 = nil
 	for {
-		// Como la peticion de winners se hace en una nueva conexion, cierro la que tenía para iniciar una nueva.
-		err := comm.ResetConnection()
-		if err != nil {
-			return nil, err
-		}
-
-		err = comm.sendWinnersRequest(agencyId)
+		err := comm.sendWinnersRequest(agencyId)
 		if err != nil {
 			return nil, err
 		}
@@ -197,6 +190,7 @@ func (comm *Communication) GetLotteryResult(agencyId uint32) ([]uint32, error) {
 		//Si sigue siendo nil, tengo que reiniciar la conexion,
 		// esperar un tiempo, y volver a consultar por ganadores
 		time.Sleep(100 * time.Millisecond)
+		log.Infof("action: consulta_ganadores | result: in_progress | client_id: %v", agencyId)
 	}
 
 	return ganadores, nil
