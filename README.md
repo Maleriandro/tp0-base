@@ -348,7 +348,9 @@ Modificar el servidor para que permita aceptar conexiones y procesar mensajes en
 > Para el primero, utilicé un `threading.Lock`, separado de la funcion `store_bets()`, ya que la funcion es llamada de un unico lugar, y no se me ocurrio como hacer que la funcion misma se encargue de la sincronizacion sin modificar la funcion.
 > Para los otros 3 cree una clase `ThreadSafeValue`, que encapsula la variable, haciendo que sea imposible acceder a ella a menos que se tome el lock asociado al valor.
 >
-> Por ultimo, modifique el socket que recibe las conexiones. Antes este socket bloqueaba indefinidamente el thread principal del servidor, hasta que un cliente se conectaba. Ahora, este socket tiene un timeout de 1 segundo. Si no se conecta ningun cliente en ese tiempo, el accept lanza una excepcion, que es capturada, y permite que el thread principal del servidor pueda seguir su ejecucion, y verificar si ya se puede realizar el sorteo, además de liberar los `ClientHandler` que ya terminaron su ejecucion.
+> Tomando como algo que el programa sabe, la cantidad total de clientes a conectarse, decidí modificar para que el servidor solamente haga listen hasta esa cantidad de clientes. Una vez todos los clientes se hayan conectado, el servidor se queda bloqueado esperando a que terminen de enviar sus apuestas, para poder realizar el sorteo.
+> Esto lo hago con una condvar, que se desbloquea cada vez que un cliente termina de enviar sus apuestas.
+> Para poder manejar el cierre inesperado del servidor, agregué varios ifs, para no quedar trabado esperando en la condvar si hubo un error, o si se recibió la señal de terminación.
 
 ## Condiciones de Entrega
 Se espera que los alumnos realicen un _fork_ del presente repositorio para el desarrollo de los ejercicios y que aprovechen el esqueleto provisto tanto (o tan poco) como consideren necesario.
